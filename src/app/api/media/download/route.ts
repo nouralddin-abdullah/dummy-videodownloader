@@ -10,6 +10,7 @@ type DownloadRequestBody = {
   url?: unknown;
   formatId?: unknown;
   audioOnly?: unknown;
+  audioFormat?: unknown;
   isMuxed?: unknown;
 };
 
@@ -50,6 +51,10 @@ export async function POST(request: Request) {
     typeof body.formatId === "string" && body.formatId.trim()
       ? body.formatId.trim()
       : undefined;
+  const audioFormat = 
+    typeof body.audioFormat === "string" && (body.audioFormat === "mp3" || body.audioFormat === "wav")
+      ? body.audioFormat
+      : "mp3";
   const audioOnly = body.audioOnly === true;
   const isMuxed = body.isMuxed === true;
 
@@ -76,6 +81,7 @@ export async function POST(request: Request) {
       url,
       formatId,
       audioOnly,
+      audioFormat,
       isMuxed,
     });
 

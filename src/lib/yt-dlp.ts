@@ -39,10 +39,27 @@ export type MediaInfo = {
   audioFormats: MediaFormat[];
 };
 
+export type PlaylistItem = {
+  id: string;
+  title: string;
+  durationSeconds: number | null;
+  url: string;
+};
+
+export type PlaylistInfo = {
+  title: string;
+  entries: PlaylistItem[];
+};
+
+export type FetchMediaResult = 
+  | { type: "video"; media: MediaInfo }
+  | { type: "playlist"; playlist: PlaylistInfo };
+
 type DownloadRequest = {
   url: string;
   formatId?: string;
   audioOnly: boolean;
+  audioFormat?: "mp3" | "wav";
   /** mirrors MediaFormat.isMuxed — tells the downloader whether to add +bestaudio */
   isMuxed?: boolean;
 };
@@ -324,13 +341,13 @@ function getProxyUrl(): string | null {
   return `http://${host}:${port}`;
 }
 
-export async function fetchMediaInfo(url: string): Promise<MediaInfo> {
+export async function fetchMediaInfo(url: string): Promise<FetchMediaResult> {
   const ytDlp = await getYtDlpInvocation();
 
   const args = [
     ...ytDlp.prefixArgs,
-    "--no-playlist",
     "--dump-single-json",
+    "--flat-playlist",
     "--no-warnings",
   ];
 
@@ -351,8 +368,29 @@ export async function fetchMediaInfo(url: string): Promise<MediaInfo> {
   );
 
   const parsed = JSON.parse(stdout) as Record<string, unknown>;
+  const _type = typeof parsed._type === "string" ? parsed._type : "video";
+  const title = typeof parsed.title === "string" ? parsed.title : "Untitled";
+
+  if (_type === "playlist" || _type === "multi_video") {
+    const rawEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
+    const entries: PlaylistItem[] = rawEntries.map((e) => ({
+      id: typeof e.id === "string" ? e.id : "",
+      title: typeof e.title === "string" ? e.title : "Untitled",
+      url: typeof e.url === "string" ? e.url : "",
+      durationSeconds: typeof e.duration === "number" ? Math.round(e.duration) : null,
+    })).filter((e) => e.id || e.url);
+
+    return {
+      type: "playlist",
+      playlist: {
+        title,
+        entries,
+      },
+    };
+  }
+
+  // Normal video parsing
   const rawFormats = Array.isArray(parsed.formats) ? parsed.formats : [];
-  
   const durationSeconds =
     typeof parsed.duration === "number" ? Math.round(parsed.duration) : null;
 
@@ -362,13 +400,16 @@ export async function fetchMediaInfo(url: string): Promise<MediaInfo> {
   );
 
   return {
-    title: typeof parsed.title === "string" ? parsed.title : "Untitled",
-    thumbnail: typeof parsed.thumbnail === "string" ? parsed.thumbnail : null,
-    durationSeconds,
-    webpageUrl:
-      typeof parsed.webpage_url === "string" ? parsed.webpage_url : url,
-    videoFormats,
-    audioFormats,
+    type: "video",
+    media: {
+      title,
+      thumbnail: typeof parsed.thumbnail === "string" ? parsed.thumbnail : null,
+      durationSeconds,
+      webpageUrl:
+        typeof parsed.webpage_url === "string" ? parsed.webpage_url : url,
+      videoFormats,
+      audioFormats,
+    },
   };
 }
 
@@ -431,13 +472,13 @@ async function runYtDlpDownload(
   args.push("-o", outputTemplate);
 
   if (request.audioOnly) {
-    // Download best (or selected) audio track and convert to MP3.
+    // Download best (or selected) audio track and convert to MP3/WAV.
     // Requires ffmpeg on the server.
     args.push("-f", request.formatId || "bestaudio");
     args.push(
       "--extract-audio",
       "--audio-format",
-      "mp3",
+      request.audioFormat || "mp3",
       "--audio-quality",
       "0",
     );

@@ -58,11 +58,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const mediaInfo = await fetchMediaInfo(url);
+    const result = await fetchMediaInfo(url);
 
     return NextResponse.json({
       platform,
-      media: mediaInfo,
+      type: result.type,
+      media: result.type === "video" ? result.media : undefined,
+      playlist: result.type === "playlist" ? result.playlist : undefined,
     });
   } catch (error) {
     return NextResponse.json(

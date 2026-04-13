@@ -25,9 +25,24 @@ type MediaInfo = {
   audioFormats: MediaFormat[];
 };
 
+type PlaylistItem = {
+  id: string;
+  title: string;
+  durationSeconds: number | null;
+  url: string;
+};
+
+type PlaylistInfo = {
+  title: string;
+  entries: PlaylistItem[];
+};
+
 type InfoApiResponse = {
   platform: Platform;
-  media: MediaInfo;
+  type?: "video" | "playlist";
+  media?: MediaInfo;
+  playlist?: PlaylistInfo;
+  message?: string;
 };
 
 const translations = {
@@ -59,7 +74,11 @@ const translations = {
     downloadFailed: "Download failed.",
     browserError: "ReadableStream not supported by browser.",
     downloadComplete: "Download complete.",
-    downloadError: "Unknown error while downloading."
+    downloadError: "Unknown error while downloading.",
+    playlistFound: "Playlist found",
+    playlistItems: "items",
+    extractItem: "Extract",
+    audioFormat: "Audio Format"
   },
   ar: {
     title: "محمل سناب نست",
@@ -89,7 +108,11 @@ const translations = {
     downloadFailed: "فشل التحميل.",
     browserError: "متصفحك لا يدعم التحميل المباشر.",
     downloadComplete: "اكتمل التحميل.",
-    downloadError: "خطأ غير معروف أثناء التحميل."
+    downloadError: "خطأ غير معروف أثناء التحميل.",
+    playlistFound: "تم اكتشاف قائمة تشغيل",
+    playlistItems: "مقطع",
+    extractItem: "استخراج",
+    audioFormat: "صيغة الصوت"
   }
 };
 
@@ -158,7 +181,9 @@ export default function Home() {
   const [success, setSuccess] = useState<string | null>(null);
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [media, setMedia] = useState<MediaInfo | null>(null);
+  const [playlist, setPlaylist] = useState<PlaylistInfo | null>(null);
   const [selectedFormatId, setSelectedFormatId] = useState<string>("");
+  const [audioFormat, setAudioFormat] = useState<"mp3" | "wav">("mp3");
   const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
 
   useEffect(() => {
@@ -213,34 +238,81 @@ export default function Home() {
         }),
       });
 
-      const payload = (await response.json()) as InfoApiResponse & {
-        message?: string;
-      };
+      const payload = (await response.json()) as InfoApiResponse;
 
       if (!response.ok) {
-        throw new Error(
-          payload.message || t.fetchError,
-        );
+        throw new Error(payload.message || t.analyzeError);
       }
 
-      setMedia(payload.media);
       setPlatform(payload.platform);
-
-      const preferredFormat = mp3Only
-        ? payload.media.audioFormats[0]?.formatId
-        : payload.media.videoFormats[0]?.formatId;
-
-      setSelectedFormatId(preferredFormat ?? "");
-      setSuccess(t.mediaReady);
+      
+      if (payload.type === "playlist" && payload.playlist) {
+        setPlaylist(payload.playlist);
+        setMedia(null);
+        setSuccess(t.playlistFound);
+      } else if (payload.media) {
+        setMedia(payload.media);
+        setPlaylist(null);
+        setSuccess(t.mediaReady);
+        const preferredFormat = mp3Only
+          ? payload.media.audioFormats[0]?.formatId
+          : payload.media.videoFormats[0]?.formatId;
+        setSelectedFormatId(preferredFormat ?? "");
+      } else {
+        throw new Error(payload.message || t.fetchError);
+      }
     } catch (requestError) {
       setPlatform(null);
       setMedia(null);
+      setPlaylist(null);
       setSelectedFormatId("");
       setError(
         requestError instanceof Error
           ? requestError.message
           : t.analyzeError,
       );
+    } finally {
+      setLoadingInfo(false);
+    }
+  }
+
+  async function handleExtractPlaylistItem(itemUrl: string) {
+    setUrl(itemUrl);
+    setPlaylist(null);
+    setMedia(null);
+    setLoadingInfo(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetchWithRetry("/api/media/info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: itemUrl }),
+      });
+
+      const payload = (await response.json()) as InfoApiResponse;
+
+      if (!response.ok) {
+        throw new Error(payload.message || t.analyzeError);
+      }
+
+      setPlatform(payload.platform);
+      if (payload.media) {
+        setMedia(payload.media);
+        setSuccess(t.mediaReady);
+        const preferredFormat = mp3Only
+          ? payload.media.audioFormats[0]?.formatId
+          : payload.media.videoFormats[0]?.formatId;
+        setSelectedFormatId(preferredFormat ?? "");
+      } else {
+        throw new Error(payload.message || t.fetchError);
+      }
+    } catch (err) {
+      setPlatform(null);
+      setMedia(null);
+      setSelectedFormatId("");
+      setError(err instanceof Error ? err.message : t.analyzeError);
     } finally {
       setLoadingInfo(false);
     }
@@ -484,6 +556,38 @@ export default function Home() {
           </div>
         </section>
 
+        {playlist && (
+          <section className="mt-5 rounded-2xl border border-border bg-background/80 p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-xl text-foreground">
+                {playlist.title || t.playlistFound}
+              </h2>
+              <span className="text-xs font-medium text-foreground/70">
+                {playlist.entries.length} {t.playlistItems}
+              </span>
+            </div>
+            
+            <div className="mt-4 max-h-[500px] overflow-y-auto space-y-2">
+              {playlist.entries.map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-xl border border-border bg-white p-3">
+                  <div className="flex-1 overflow-hidden pr-2">
+                    <p className="text-sm font-medium text-foreground line-clamp-1">{item.title}</p>
+                    {item.durationSeconds && (
+                       <p className="mt-1 text-xs text-foreground/60" dir="ltr">{formatDuration(item.durationSeconds, t)}</p>
+                    )}
+                  </div>
+                  <button 
+                     onClick={() => handleExtractPlaylistItem(item.url)}
+                     className="whitespace-nowrap ml-3 md:ml-4 rounded-lg bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent hover:text-white"
+                  >
+                    {t.extractItem}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {media && (
           <section className="mt-5 rounded-2xl border border-border bg-background/80 p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -530,7 +634,20 @@ export default function Home() {
               </div>
             )}
 
-            <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="mt-4 flex flex-col sm:flex-row flex-wrap items-center gap-3">
+              {mp3Only && (
+                 <div className="flex items-center gap-2 rounded-xl bg-white px-4 border border-border h-12 w-full sm:w-auto">
+                   <span className="text-sm text-foreground/70">{t.audioFormat}:</span>
+                   <select 
+                     value={audioFormat} 
+                     onChange={(e) => setAudioFormat(e.target.value as "mp3" | "wav")}
+                     className="text-sm font-semibold bg-transparent outline-none cursor-pointer flex-1"
+                   >
+                     <option value="mp3">MP3</option>
+                     <option value="wav">WAV</option>
+                   </select>
+                 </div>
+              )}
               <button
                 type="button"
                 onClick={handleDownload}
