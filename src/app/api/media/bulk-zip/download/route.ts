@@ -25,9 +25,36 @@ export async function GET(req: NextRequest) {
       // Converts Node stream gracefully into Next.js edge stream natively
       const readableWebStream = new ReadableStream({
         start(controller) {
-          stream.on("data", (chunk) => controller.enqueue(chunk));
-          stream.on("end", () => controller.close());
-          stream.on("error", (err) => controller.error(err));
+          let isClosed = false;
+
+          const safeClose = () => {
+            if (isClosed) return;
+            isClosed = true;
+            try { controller.close(); } catch {}
+          };
+          
+          const safeError = (err: any) => {
+            if (isClosed) return;
+            isClosed = true;
+            try { controller.error(err); } catch {}
+          };
+
+          stream.on("data", (chunk) => {
+            if (isClosed) return;
+            try {
+              controller.enqueue(chunk);
+            } catch (e) {
+              isClosed = true;
+              stream.destroy();
+            }
+          });
+          stream.on("end", safeClose);
+          stream.on("error", safeError);
+          
+          req.signal.addEventListener("abort", () => {
+             isClosed = true;
+             stream.destroy();
+          });
         },
       });
 

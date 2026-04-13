@@ -11,10 +11,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const isEn = locale === "en";
 
-  const title = isEn 
-    ? "SnapNest - The Universal Video Downloader" 
+  const title = isEn
+    ? "SnapNest - The Universal Video Downloader"
     : "سناب نست - محمل الفيديوهات الشامل";
-    
+
   const desc = isEn
     ? "SnapNest is an advanced downloader supporting YouTube, Facebook, TikTok, Instagram, Twitter/X, and Spotify. Download high quality HD/MP4 videos or convert playlists to MP3 audio easily."
     : "سناب نست هو أداة تحميل متقدمة تدعم يوتيوب، سبوتيفاي، فيسبوك، تيك توك، انستغرام، وتويتر/إكس. قم بتنزيل الفيديوهات بجودة عالية HD أو حول وقوائم التشغيل إلى ملفات صوتية MP3 بكل سهولة.";
@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     "twitter video downloader", "download video from x", "x video downloader",
     "youtube playlist downloader", "download whole youtube playlist", "download playlist to mp3",
     "playlist to wav", "youtube to wav converter", "mp3 format downloader",
-    "spotify track downloader", "spotify playlist downloader", "download spotify to mp3", 
+    "spotify track downloader", "spotify playlist downloader", "download spotify to mp3",
     "spotify to mp3", "download songs from spotify free", "free spotify downloader", "spotify to wav"
   ] : [
     "SnapNest", "سناب نست", "تحميل فيديو", "تنزيل فيديوهات", "تنزيل مقاطع", "محمل فيديوهات",
@@ -44,6 +44,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   ];
 
   return {
+    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://nouralddin.wtf'),
     title: {
       default: title,
       template: isEn ? "%s | SnapNest" : "%s | سناب نست",
@@ -52,7 +53,6 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     keywords,
     authors: [{ name: isEn ? "SnapNest" : "سناب نست" }],
     creator: "SnapNest",
-    metadataBase: new URL("https://nouralddin.wtf"),
     alternates: {
       languages: {
         'en': '/en',
