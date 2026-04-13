@@ -27,12 +27,12 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "سناب نست" }],
   creator: "SnapNest",
-  metadataBase: new URL("https://example.com"),
+  metadataBase: new URL("https://nouralddin.wtf"),
   openGraph: {
     title: "سناب نست - الموقع الأصلي لتحميل الفيديوهات من جميع المنصات",
     description:
       "احفظ فيديوهاتك المفضلة بسرعة وأمان! دعم كامل ليوتيوب، فيسبوك، تيك توك، انستغرام وتويتر، مع خيارات التحميل بجودة HD أو MP3.",
-    url: "https://example.com",
+    url: "https://nouralddin.wtf",
     siteName: "سناب نست لتحميل الفيديوهات",
     locale: "ar_AR",
     type: "website",
