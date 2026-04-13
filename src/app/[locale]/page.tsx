@@ -162,8 +162,8 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
   throw new Error("Maximum retries exceeded");
 }
 
-export default function Home() {
-  const [lang, setLang] = useState<"ar" | "en">("ar");
+export default function Home({ params }: { params: { locale: string } }) {
+  const lang = params.locale === "en" ? "en" : "ar";
   const t = translations[lang];
 
   useEffect(() => {
@@ -427,12 +427,12 @@ export default function Home() {
 
       <main className="w-full max-w-5xl rounded-3xl border border-border/90 bg-card/95 p-5 shadow-[0_24px_90px_rgba(55,31,10,0.16)] backdrop-blur-sm sm:p-8">
         <div className="flex w-full items-center justify-end mb-4">
-          <button
-            onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+          <a
+            href={lang === "ar" ? "/en" : "/ar"}
             className="flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-slate-50"
           >
             {lang === "ar" ? "🇺🇸 English" : "🇸🇦 العربية"}
-          </button>
+          </a>
         </div>
 
         <section className="mb-7">
