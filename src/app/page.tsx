@@ -1,64 +1,472 @@
+"use client";
+
 import Image from "next/image";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+
+type Platform = {
+  id: string;
+  name: string;
+};
+
+type MediaFormat = {
+  formatId: string;
+  ext: string;
+  qualityLabel: string;
+  sizeLabel: string | null;
+  audioBitrate: number | null;
+  isMuxed: boolean;
+};
+
+type MediaInfo = {
+  title: string;
+  thumbnail: string | null;
+  durationSeconds: number | null;
+  videoFormats: MediaFormat[];
+  audioFormats: MediaFormat[];
+};
+
+type InfoApiResponse = {
+  platform: Platform;
+  media: MediaInfo;
+};
+
+
+const platformLabels = [
+  "YouTube",
+  "Facebook",
+  "TikTok",
+  "Instagram",
+  "Twitter / X",
+];
+
+function formatDuration(seconds: number | null): string {
+  if (!seconds || Number.isNaN(seconds)) {
+    return "Unknown duration";
+  }
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
 
 export default function Home() {
+  const [url, setUrl] = useState("");
+  const [mp3Only, setMp3Only] = useState(false);
+  const [loadingInfo, setLoadingInfo] = useState(false);
+  const [downloadPhase, setDownloadPhase] = useState<
+    "idle" | "processing" | "transferring"
+  >("idle");
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<Platform | null>(null);
+  const [media, setMedia] = useState<MediaInfo | null>(null);
+  const [selectedFormatId, setSelectedFormatId] = useState<string>("");
+  const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.downloads === "number") {
+          setTotalDownloads(data.downloads);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const activeFormats = useMemo(() => {
+    if (!media) {
+      return [];
+    }
+
+    return mp3Only ? media.audioFormats : media.videoFormats;
+  }, [media, mp3Only]);
+
+  // isMuxed for the currently selected video format — needed by the download API
+  const selectedFormat = useMemo(
+    () => activeFormats.find((f) => f.formatId === selectedFormatId) ?? null,
+    [activeFormats, selectedFormatId],
+  );
+
+  const hasUrl = url.trim().length > 0;
+  const canDownload =
+    Boolean(media) &&
+    downloadPhase === "idle" &&
+    (mp3Only || selectedFormatId.length > 0 || activeFormats.length === 0);
+
+  async function handleAnalyze(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!hasUrl || loadingInfo) {
+      return;
+    }
+
+    setLoadingInfo(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/media/info", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url,
+        }),
+      });
+
+      const payload = (await response.json()) as InfoApiResponse & {
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          payload.message || "Could not fetch media information.",
+        );
+      }
+
+      setMedia(payload.media);
+      setPlatform(payload.platform);
+
+      const preferredFormat = mp3Only
+        ? payload.media.audioFormats[0]?.formatId
+        : payload.media.videoFormats[0]?.formatId;
+
+      setSelectedFormatId(preferredFormat ?? "");
+      setSuccess("Media ready. Choose quality and download.");
+    } catch (requestError) {
+      setPlatform(null);
+      setMedia(null);
+      setSelectedFormatId("");
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unknown error while analyzing URL.",
+      );
+    } finally {
+      setLoadingInfo(false);
+    }
+  }
+
+  async function handleDownload() {
+    if (!canDownload) {
+      return;
+    }
+
+    setDownloadPhase("processing");
+    setDownloadProgress(0);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/media/download", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url,
+          formatId: selectedFormatId || undefined,
+          audioOnly: mp3Only,
+          isMuxed: selectedFormat?.isMuxed ?? false,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string };
+        throw new Error(payload.message || "Download failed.");
+      }
+
+      setDownloadPhase("transferring");
+
+      const contentLength = response.headers.get("Content-Length");
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("ReadableStream not supported by browser.");
+
+      let receivedBytes = 0;
+      const chunks: BlobPart[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          receivedBytes += value.length;
+          if (totalBytes > 0) {
+            setDownloadProgress(Math.round((receivedBytes / totalBytes) * 100));
+          }
+        }
+      }
+
+      const blob = new Blob(chunks, {
+        type:
+          response.headers.get("Content-Type") || "application/octet-stream",
+      });
+
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const encodedName = contentDisposition?.match(
+        /filename\*=UTF-8''([^;]+)/i,
+      )?.[1];
+      const fileName = encodedName
+        ? decodeURIComponent(encodedName)
+        : mp3Only
+          ? "audio.mp3"
+          : "video.mp4";
+
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      setSuccess("Download complete.");
+      setTotalDownloads((prev) => (prev !== null ? prev + 1 : null));
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unknown error while downloading.",
+      );
+    } finally {
+      setDownloadPhase("idle");
+      setDownloadProgress(0);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="relative isolate flex flex-1 justify-center px-4 py-8 sm:px-8 sm:py-12">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -left-28 top-10 h-72 w-72 rounded-full bg-[#f3bb88]/45 blur-3xl" />
+        <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-[#7ac8bc]/45 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-52 w-52 rounded-full bg-[#89a9f4]/30 blur-3xl" />
+      </div>
+
+      <main className="w-full max-w-5xl rounded-3xl border border-border/90 bg-card/95 p-5 shadow-[0_24px_90px_rgba(55,31,10,0.16)] backdrop-blur-sm sm:p-8">
+        <section className="mb-7">
+          <p className="mb-2 inline-flex rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-accent">
+            SnapNest Downloader
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <h1 className="text-3xl leading-tight text-foreground sm:text-5xl">
+            Download social videos in the quality you want.
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-foreground/75 sm:text-base">
+            Paste one public URL from supported platforms, choose video quality
+            or switch to audio-only, then start downloading.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {platformLabels.map((item) => (
+              <span
+                key={item}
+                className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-foreground/80"
+              >
+                {item}
+              </span>
+            ))}
+            {totalDownloads !== null && (
+              <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-3.5 w-3.5"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 3a1 1 0 011 1v7.586l2.293-2.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L9 11.586V4a1 1 0 011-1zM5 15a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {totalDownloads.toLocaleString()} downloads
+              </span>
+            )}
+          </div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+          <form
+            onSubmit={handleAnalyze}
+            className="rounded-2xl border border-border bg-background/80 p-4 sm:p-5"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            <label
+              htmlFor="video-url"
+              className="mb-2 block text-sm font-semibold text-foreground"
+            >
+              Video URL
+            </label>
+            <input
+              id="video-url"
+              type="url"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none ring-accent/35 transition focus:ring"
+              required
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-white px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={mp3Only}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setMp3Only(checked);
+                    const defaultFormat = checked
+                      ? media?.audioFormats[0]?.formatId
+                      : media?.videoFormats[0]?.formatId;
+                    setSelectedFormatId(defaultFormat ?? "");
+                  }}
+                  className="size-4"
+                />
+                Audio only
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loadingInfo}
+              className="mt-5 inline-flex h-12 items-center justify-center rounded-xl bg-accent px-5 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loadingInfo ? "Checking..." : "Check"}
+            </button>
+          </form>
+
+          <div className="rounded-2xl border border-border bg-background/80 p-4 sm:p-5">
+            <h2 className="text-xl text-foreground">Selected Media</h2>
+
+            {!media && (
+              <p className="mt-3 text-sm text-foreground/70">
+                No media loaded yet. Analyze a URL to preview and download.
+              </p>
+            )}
+
+            {media && (
+              <div className="mt-4 space-y-3">
+                {media.thumbnail && (
+                  <div className="relative aspect-video overflow-hidden rounded-xl border border-border">
+                    <Image
+                      src={media.thumbnail}
+                      alt={media.title}
+                      fill
+                      unoptimized
+                      sizes="(max-width: 768px) 100vw, 40vw"
+                      className="object-cover"
+                    />
+                  </div>
+                )}
+                <h3 className="line-clamp-2 text-lg text-foreground">
+                  {media.title}
+                </h3>
+                <div className="flex flex-wrap gap-2 text-xs text-foreground/80">
+                  {platform && (
+                    <span className="rounded-full border border-border bg-white px-2 py-1">
+                      {platform.name}
+                    </span>
+                  )}
+                  <span className="rounded-full border border-border bg-white px-2 py-1">
+                    {formatDuration(media.durationSeconds)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {media && (
+          <section className="mt-5 rounded-2xl border border-border bg-background/80 p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-xl text-foreground">
+                {mp3Only ? "Audio quality options" : "Video quality options"}
+              </h2>
+              <span className="text-xs font-medium text-foreground/70">
+                {activeFormats.length} option
+                {activeFormats.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            {activeFormats.length === 0 && (
+              <p className="text-sm text-foreground/70">
+                No matching format was found for this mode. Try toggling
+                audio-only.
+              </p>
+            )}
+
+            {activeFormats.length > 0 && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {activeFormats.map((format) => {
+                  const isSelected = selectedFormatId === format.formatId;
+
+                  return (
+                    <button
+                      key={format.formatId}
+                      type="button"
+                      onClick={() => setSelectedFormatId(format.formatId)}
+                      className={`rounded-xl border px-4 py-3 text-left transition ${
+                        isSelected
+                          ? "border-accent bg-accent/10"
+                          : "border-border bg-white hover:border-accent/45"
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-foreground">
+                        {format.qualityLabel}
+                      </p>
+                      <p className="mt-1 text-xs text-foreground/75">
+                        {format.ext.toUpperCase()}
+                        {format.sizeLabel ? ` - ${format.sizeLabel}` : ""}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={!canDownload}
+                className="inline-flex h-12 min-w-[200px] items-center justify-center rounded-xl bg-accent-2 px-5 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {downloadPhase === "processing"
+                  ? "Processing on server..."
+                  : downloadPhase === "transferring"
+                    ? `Downloading... ${downloadProgress}%`
+                    : mp3Only
+                      ? "Download audio"
+                      : "Download video"}
+              </button>
+              <p className="text-xs text-foreground/65">
+                Download supports public media and content you are authorized to
+                save.
+              </p>
+            </div>
+          </section>
+        )}
+
+        {error && (
+          <p className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+
+        {success && (
+          <p className="mt-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {success}
+          </p>
+        )}
       </main>
     </div>
   );

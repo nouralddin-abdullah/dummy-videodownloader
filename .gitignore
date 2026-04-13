@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# bundled binaries (downloaded at install time)
+/bin
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
