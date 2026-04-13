@@ -44,6 +44,7 @@ export type PlaylistItem = {
   title: string;
   durationSeconds: number | null;
   url: string;
+  thumbnail: string | null;
 };
 
 export type PlaylistInfo = {
@@ -373,12 +374,24 @@ export async function fetchMediaInfo(url: string): Promise<FetchMediaResult> {
 
   if (_type === "playlist" || _type === "multi_video") {
     const rawEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
-    const entries: PlaylistItem[] = rawEntries.map((e) => ({
-      id: typeof e.id === "string" ? e.id : "",
-      title: typeof e.title === "string" ? e.title : "Untitled",
-      url: typeof e.url === "string" ? e.url : "",
-      durationSeconds: typeof e.duration === "number" ? Math.round(e.duration) : null,
-    })).filter((e) => e.id || e.url);
+    const entries: PlaylistItem[] = rawEntries.map((e) => {
+      const record = e as Record<string, unknown>;
+      const thumbnails = Array.isArray(record.thumbnails) ? record.thumbnails : [];
+      let thumbnail: string | null = null;
+      if (thumbnails.length > 0) {
+        const lastThumb = thumbnails[thumbnails.length - 1] as Record<string, unknown>;
+        if (typeof lastThumb.url === "string") {
+          thumbnail = lastThumb.url;
+        }
+      }
+      return {
+        id: typeof record.id === "string" ? record.id : "",
+        title: typeof record.title === "string" ? record.title : "Untitled",
+        url: typeof record.url === "string" ? record.url : "",
+        durationSeconds: typeof record.duration === "number" ? Math.round(record.duration) : null,
+        thumbnail,
+      };
+    }).filter((e) => e.id || e.url);
 
     return {
       type: "playlist",

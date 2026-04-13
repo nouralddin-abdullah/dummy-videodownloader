@@ -182,6 +182,7 @@ export default function Home() {
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [media, setMedia] = useState<MediaInfo | null>(null);
   const [playlist, setPlaylist] = useState<PlaylistInfo | null>(null);
+  const [playlistAudioFormats, setPlaylistAudioFormats] = useState<Record<string, "mp3" | "wav">>({});
   const [selectedFormatId, setSelectedFormatId] = useState<string>("");
   const [audioFormat, setAudioFormat] = useState<"mp3" | "wav">("mp3");
   const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
@@ -318,8 +319,8 @@ export default function Home() {
     }
   }
 
-  async function handleDownload() {
-    if (!canDownload) {
+  async function handleDownload(overrideUrl?: string, overrideAudioOnly?: boolean, overrideAudioFormat?: "mp3" | "wav") {
+    if (!overrideUrl && !canDownload) {
       return;
     }
 
@@ -328,6 +329,12 @@ export default function Home() {
     setError(null);
     setSuccess(null);
 
+    const targetUrl = overrideUrl || url;
+    const targetAudioOnly = overrideAudioOnly ?? mp3Only;
+    const targetAudioFormat = overrideAudioFormat ?? audioFormat;
+    const targetFormatId = overrideUrl ? undefined : (selectedFormatId || undefined);
+    const targetIsMuxed = overrideUrl ? false : (selectedFormat?.isMuxed ?? false);
+
     try {
       const response = await fetchWithRetry("/api/media/download", {
         method: "POST",
@@ -335,10 +342,11 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          url,
-          formatId: selectedFormatId || undefined,
-          audioOnly: mp3Only,
-          isMuxed: selectedFormat?.isMuxed ?? false,
+          url: targetUrl,
+          formatId: targetFormatId,
+          audioOnly: targetAudioOnly,
+          audioFormat: targetAudioFormat,
+          isMuxed: targetIsMuxed,
         }),
       });
 
@@ -568,22 +576,57 @@ export default function Home() {
             </div>
             
             <div className="mt-4 max-h-[500px] overflow-y-auto space-y-2">
-              {playlist.entries.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-xl border border-border bg-white p-3">
-                  <div className="flex-1 overflow-hidden pr-2">
-                    <p className="text-sm font-medium text-foreground line-clamp-1">{item.title}</p>
-                    {item.durationSeconds && (
-                       <p className="mt-1 text-xs text-foreground/60" dir="ltr">{formatDuration(item.durationSeconds, t)}</p>
-                    )}
+              {playlist.entries.map((item) => {
+                const itemFmt = playlistAudioFormats[item.id] || "mp3";
+                
+                return (
+                  <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-xl border border-border bg-white p-3 gap-3">
+                    <div className="flex items-center gap-3 flex-1 overflow-hidden w-full">
+                      {item.thumbnail ? (
+                        <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-border">
+                          <Image src={item.thumbnail} alt={item.title} fill unoptimized className="object-cover" />
+                        </div>
+                      ) : (
+                        <div className="h-14 w-24 shrink-0 rounded-lg bg-gray-100 border border-border flex items-center justify-center">
+                          <span className="text-[10px] text-gray-400">No Image</span>
+                        </div>
+                      )}
+                      <div className="flex-1 overflow-hidden pr-2">
+                        <p className="text-sm font-medium text-foreground line-clamp-2">{item.title}</p>
+                        {item.durationSeconds && (
+                           <p className="mt-1 text-xs text-foreground/60" dir="ltr">{formatDuration(item.durationSeconds, t)}</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                      <div className="flex bg-accent/5 rounded-lg border border-accent/20 p-1 flex-1 sm:flex-initial">
+                        <select 
+                           value={itemFmt}
+                           onChange={(e) => setPlaylistAudioFormats({...playlistAudioFormats, [item.id]: e.target.value as "mp3"|"wav"})}
+                           className="bg-transparent text-xs outline-none text-foreground/80 cursor-pointer pl-1 pr-0"
+                        >
+                          <option value="mp3">MP3</option>
+                          <option value="wav">WAV</option>
+                        </select>
+                        <button 
+                           onClick={() => handleDownload(item.url, true, itemFmt)}
+                           className="ml-2 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 flex-1"
+                        >
+                          {t.downloadAudio}
+                        </button>
+                      </div>
+  
+                      <button 
+                         onClick={() => handleDownload(item.url, false)}
+                         className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 flex-1 sm:flex-initial text-center"
+                      >
+                         {t.downloadVideo}
+                      </button>
+                    </div>
                   </div>
-                  <button 
-                     onClick={() => handleExtractPlaylistItem(item.url)}
-                     className="whitespace-nowrap ml-3 md:ml-4 rounded-lg bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent hover:text-white"
-                  >
-                    {t.extractItem}
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
