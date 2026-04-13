@@ -79,7 +79,10 @@ const translations = {
     playlistFound: "Playlist found",
     playlistItems: "items",
     extractItem: "Extract",
-    audioFormat: "Audio Format"
+    audioFormat: "Audio Format",
+    selectAll: "Select All",
+    deselectAll: "Deselect All",
+    downloadSelected: "Download Selected"
   },
   ar: {
     title: "محمل سناب نست",
@@ -113,7 +116,10 @@ const translations = {
     playlistFound: "تم اكتشاف قائمة تشغيل",
     playlistItems: "مقطع",
     extractItem: "استخراج",
-    audioFormat: "صيغة الصوت"
+    audioFormat: "صيغة الصوت",
+    selectAll: "تحديد الكل",
+    deselectAll: "إلغاء التحديد",
+    downloadSelected: "تحميل المحدد"
   }
 };
 
@@ -188,6 +194,23 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
   const [selectedFormatId, setSelectedFormatId] = useState<string>("");
   const [audioFormat, setAudioFormat] = useState<"mp3" | "wav">("mp3");
   const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
+  const [selectedPlaylistItems, setSelectedPlaylistItems] = useState<Set<string>>(new Set());
+  const [isDownloadingBulk, setIsDownloadingBulk] = useState(false);
+
+  const toggleSelection = (id: string, action?: "all" | "none") => {
+    setSelectedPlaylistItems((prev) => {
+      const next = new Set(prev);
+      if (action === "all") {
+        if (playlist) playlist.entries.forEach(e => next.add(e.id));
+      } else if (action === "none") {
+        next.clear();
+      } else {
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     fetch("/api/stats")
@@ -331,7 +354,7 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
     setError(null);
     setSuccess(null);
 
-    const targetUrl = overrideUrl || url;
+    const targetUrl = overrideUrl || media?.webpageUrl || url;
     const targetAudioOnly = overrideAudioOnly ?? mp3Only;
     const targetAudioFormat = overrideAudioFormat ?? audioFormat;
     const targetFormatId = overrideUrl ? undefined : (selectedFormatId || undefined);
@@ -416,6 +439,24 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
       setDownloadPhase("idle");
       setDownloadProgress(0);
     }
+  }
+
+  async function handleBulkDownload() {
+    if (selectedPlaylistItems.size === 0) return;
+    setIsDownloadingBulk(true);
+    for (const itemId of selectedPlaylistItems) {
+      if (!playlist) break;
+      const item = playlist.entries.find((e) => e.id === itemId);
+      if (item) {
+        const targetAudioFormat = playlistAudioFormats[item.id] || "mp3";
+        try {
+          await handleDownload(item.url, true, targetAudioFormat);
+        } catch (error) {
+          console.error(`Failed to download ${item.title}`, error);
+        }
+      }
+    }
+    setIsDownloadingBulk(false);
   }
 
   return (
@@ -576,14 +617,53 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
                 {playlist.entries.length} {t.playlistItems}
               </span>
             </div>
+
+
+            {playlist.entries.length > 0 && (
+              <div className="flex flex-wrap items-center mt-2 gap-3 pb-3 border-b border-border/50">
+                <button
+                  type="button"
+                  onClick={() => toggleSelection("", "all")}
+                  className="rounded-full bg-slate-100 hover:bg-slate-200 px-3 py-1 text-xs font-medium text-slate-700 transition"
+                >
+                  {t.selectAll}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSelection("", "none")}
+                  className="rounded-full bg-slate-100 hover:bg-slate-200 px-3 py-1 text-xs font-medium text-slate-700 transition"
+                >
+                  {t.deselectAll}
+                </button>
+                {selectedPlaylistItems.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleBulkDownload}
+                    disabled={isDownloadingBulk}
+                    className="rounded-full bg-accent hover:bg-accent/90 px-3 py-1 text-xs font-medium text-white shadow-sm transition disabled:opacity-50 ml-auto flex items-center gap-2"
+                  >
+                    {isDownloadingBulk ? (
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : null}
+                    {t.downloadSelected} ({selectedPlaylistItems.size})
+                  </button>
+                )}
+              </div>
+            )}
             
             <div className="mt-4 max-h-[500px] overflow-y-auto space-y-2">
               {playlist.entries.map((item) => {
                 const itemFmt = playlistAudioFormats[item.id] || "mp3";
                 
                 return (
-                  <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-xl border border-border bg-white p-3 gap-3">
+                  <div key={item.id} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-xl border p-3 gap-3 transition-colors ${selectedPlaylistItems.has(item.id) ? 'border-accent/40 bg-accent/5' : 'border-border bg-white hover:border-accent/20'}`}>
                     <div className="flex items-center gap-3 flex-1 overflow-hidden w-full">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedPlaylistItems.has(item.id)}
+                        onChange={() => toggleSelection(item.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent/50 cursor-pointer"
+                      />
                       {item.thumbnail ? (
                         <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-border">
                           <Image src={item.thumbnail} alt={item.title} fill unoptimized className="object-cover" />

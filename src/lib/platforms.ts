@@ -3,7 +3,8 @@ export type PlatformId =
   | "facebook"
   | "tiktok"
   | "instagram"
-  | "twitter";
+  | "twitter"
+  | "spotify";
 
 export type Platform = {
   id: PlatformId;
@@ -37,6 +38,11 @@ export const SUPPORTED_PLATFORMS: Platform[] = [
     name: "Twitter / X",
     hosts: ["twitter.com", "x.com"],
   },
+  {
+    id: "spotify",
+    name: "Spotify",
+    hosts: ["spotify.com"],
+  },
 ];
 
 function hostMatches(hostname: string, supportedHost: string): boolean {
@@ -44,6 +50,11 @@ function hostMatches(hostname: string, supportedHost: string): boolean {
 }
 
 export function detectPlatform(videoUrl: string): Platform | null {
+  // Allow explicit ytsearch commands dynamically routed from Spotify bridging
+  if (typeof videoUrl === "string" && videoUrl.startsWith("ytsearch")) {
+    return SUPPORTED_PLATFORMS.find(p => p.id === "youtube") || null;
+  }
+
   let parsed: URL;
 
   try {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { detectPlatform } from "@/lib/platforms";
 import { fetchMediaInfo } from "@/lib/yt-dlp";
+import { fetchSpotifyMedia } from "@/lib/spotify";
 
 export const runtime = "nodejs";
 
@@ -51,14 +52,16 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message:
-          "Unsupported URL. Only YouTube, Facebook, TikTok, Instagram, and Twitter/X URLs are accepted.",
+          "Unsupported URL. Only Spotify, YouTube, Facebook, TikTok, Instagram, and Twitter/X URLs are accepted.",
       },
       { status: 400 },
     );
   }
 
   try {
-    const result = await fetchMediaInfo(url);
+    const result = platform.id === "spotify" 
+      ? await fetchSpotifyMedia(url)
+      : await fetchMediaInfo(url);
 
     return NextResponse.json({
       platform,

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { detectPlatform } from "@/lib/platforms";
 import { downloadMedia } from "@/lib/yt-dlp";
 import { incrementDownloads } from "@/lib/stats";
+import { fetchSpotifyMedia } from "@/lib/spotify";
 
 export const runtime = "nodejs";
 
@@ -70,15 +71,27 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message:
-          "Unsupported URL. Only YouTube, Facebook, TikTok, Instagram, and Twitter/X URLs are accepted.",
+          "Unsupported URL. Only Spotify, YouTube, Facebook, TikTok, Instagram, and Twitter/X URLs are accepted.",
       },
       { status: 400 },
     );
   }
 
+  let activeUrl = url;
+
+  if (platform.id === "spotify") {
+    // Dynamically bridge Spotify downloads in the backend if triggered without frontend info context.
+    const spotifyData = await fetchSpotifyMedia(url);
+    if (spotifyData.type === "video") {
+      activeUrl = spotifyData.media.webpageUrl;
+    } else {
+      return NextResponse.json({ message: "Cannot bulk download a playlist indirectly. Extract via /info first." }, { status: 400 });
+    }
+  }
+
   try {
     const payload = await downloadMedia({
-      url,
+      url: activeUrl,
       formatId,
       audioOnly,
       audioFormat,
