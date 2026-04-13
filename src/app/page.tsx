@@ -30,6 +30,7 @@ type PlaylistItem = {
   title: string;
   durationSeconds: number | null;
   url: string;
+  thumbnail: string | null;
 };
 
 type PlaylistInfo = {
@@ -693,7 +694,7 @@ export default function Home() {
               )}
               <button
                 type="button"
-                onClick={handleDownload}
+                onClick={() => handleDownload()}
                 disabled={!canDownload}
                 className={`inline-flex h-12 min-w-[200px] items-center justify-center rounded-xl bg-accent-2 px-5 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${lang === "en" ? "" : "text-left"}`}
                 style={{ direction: "ltr" }}
