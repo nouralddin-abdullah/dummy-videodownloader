@@ -148,7 +148,7 @@ export default function Home() {
           setTotalDownloads(data.downloads);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const activeFormats = useMemo(() => {
@@ -490,11 +490,10 @@ export default function Home() {
                       key={format.formatId}
                       type="button"
                       onClick={() => setSelectedFormatId(format.formatId)}
-                      className={`rounded-xl border px-4 py-3 text-left transition ${
-                        isSelected
+                      className={`rounded-xl border px-4 py-3 text-left transition ${isSelected
                           ? "border-accent bg-accent/10"
                           : "border-border bg-white hover:border-accent/45"
-                      }`}
+                        }`}
                       dir="ltr"
                     >
                       <p className="text-sm font-semibold text-foreground">
