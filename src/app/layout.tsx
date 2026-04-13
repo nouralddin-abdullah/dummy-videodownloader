@@ -15,22 +15,65 @@ export const metadata: Metadata = {
   description:
     "سناب نست هو أداة تحميل فيديوهات متقدمة تدعم يوتيوب، فيسبوك، تيك توك، انستغرام، وتويتر/إكس. قم بتنزيل الفيديوهات بجودة عالية HD/MP4 أو حولها إلى ملفات صوتية MP3 بكل سهولة.",
   keywords: [
-    "تحميل فيديو",
-    "تنزيل يوتيوب",
-    "تحميل فيديوهات فيسبوك",
-    "تنزيل من فيسبوك",
-    "تيك توك بدون علامة مائية",
-    "تحميل ريلز انستغرام",
-    "تحميل فيديوهات تويتر",
-    "محول يوتيوب الى mp3",
-    "download facebook video",
-    "facebook video downloader",
-    "youtube to mp3",
-    "tiktok video downloader no watermark",
-    "twitter video downloader",
-    "instagram reels downloader",
+    // Brand
     "SnapNest",
     "سناب نست",
+    
+    // Generic Downloaders
+    "تحميل فيديو",
+    "تنزيل فيديوهات",
+    "تنزيل مقاطع",
+    "محمل فيديوهات",
+    "video downloader",
+    "download video online",
+    "free video downloader",
+    
+    // YouTube
+    "تنزيل يوتيوب",
+    "تحميل من اليوتيوب",
+    "يوتيوب mp4",
+    "محول يوتيوب الى mp3",
+    "تنزيل اغاني يوتيوب",
+    "youtube video downloader",
+    "download youtube video",
+    "youtube to mp3",
+    "yt to mp4",
+    
+    // Facebook
+    "تحميل فيديوهات فيسبوك",
+    "تنزيل من فيسبوك",
+    "فيس بوك تحميل فيديو",
+    "facebook video downloader",
+    "download facebook video",
+    "fb video downloader",
+    
+    // Instagram
+    "تحميل ريلز انستغرام",
+    "تنزيل فيديو انستجرام",
+    "حفظ مقاطع انستقرام",
+    "تحميل فيديو من insta",
+    "تنزيل ستوري انستا",
+    "instagram video downloader",
+    "instagram reels downloader",
+    "download from insta",
+    "ig downloader",
+    
+    // TikTok
+    "تيك توك بدون علامة مائية",
+    "تحميل تيك توك",
+    "تنزيل من تيكتوك",
+    "حفظ مقاطع تيك توك",
+    "tiktok video downloader no watermark",
+    "download tiktok video",
+    "tiktok downloader without watermark",
+    
+    // Twitter / X
+    "تحميل فيديوهات تويتر",
+    "تنزيل فيديو من إكس",
+    "حفظ فيديوهات تويتر",
+    "twitter video downloader",
+    "download video from x",
+    "x video downloader",
   ],
   authors: [{ name: "سناب نست" }],
   creator: "SnapNest",
