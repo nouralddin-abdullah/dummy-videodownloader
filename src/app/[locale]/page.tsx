@@ -83,7 +83,9 @@ const translations = {
     audioFormat: "Audio Format",
     selectAll: "Select All",
     deselectAll: "Deselect All",
-    downloadSelected: "Download Selected"
+    downloadSelected: "Download Selected",
+    zipDownloadWarning: "Zipping songs might fail midway and lose progress. It's recommended to uncheck the zip if downloading too many songs.",
+    downloadAsZip: "Download as ZIP"
   },
   ar: {
     title: "محمل سناب نست",
@@ -120,7 +122,9 @@ const translations = {
     audioFormat: "صيغة الصوت",
     selectAll: "تحديد الكل",
     deselectAll: "إلغاء التحديد",
-    downloadSelected: "تحميل المحدد"
+    downloadSelected: "تحميل المحدد",
+    zipDownloadWarning: "قد يفشل ضغط الأغاني في منتصف الطريق وتفقد تقدمك. يوصى بإلغاء تحديد خيار الضغط (ZIP) إذا كنت تقوم بتنزيل العديد من الأغاني.",
+    downloadAsZip: "ضغط كملف ZIP"
   }
 };
 
@@ -198,6 +202,7 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
   const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
   const [selectedPlaylistItems, setSelectedPlaylistItems] = useState<Set<string>>(new Set());
   const [isDownloadingBulk, setIsDownloadingBulk] = useState(false);
+  const [downloadAsZip, setDownloadAsZip] = useState(false);
 
   const toggleSelection = (id: string, action?: "all" | "none") => {
     setSelectedPlaylistItems((prev) => {
@@ -449,20 +454,61 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
   }
 
   async function handleBulkDownload() {
-    if (selectedPlaylistItems.size === 0) return;
+    if (selectedPlaylistItems.size === 0 || !playlist) return;
     setIsDownloadingBulk(true);
-    for (const itemId of selectedPlaylistItems) {
-      if (!playlist) break;
-      const item = playlist.entries.find((e) => e.id === itemId);
-      if (item) {
-        const targetAudioFormat = playlistAudioFormats[item.id] || "mp3";
-        try {
-          await handleDownload(item.url, true, targetAudioFormat);
-        } catch (error) {
-          console.error(`Failed to download ${item.title}`, error);
+
+    if (downloadAsZip) {
+      try {
+        const itemsToDownload = Array.from(selectedPlaylistItems).map((itemId) => {
+          const item = playlist.entries.find((e) => e.id === itemId);
+          if (!item) return null;
+          return {
+            url: item.url,
+            audioOnly: true,
+            audioFormat: playlistAudioFormats[item.id] || "mp3",
+            title: item.title,
+            id: item.id
+          };
+        }).filter(Boolean);
+
+        const response = await fetchWithRetry("/api/media/bulk-zip", {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ items: itemsToDownload })
+        });
+
+        if (!response.ok) throw new Error("ZIP creation failed on server.");
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = "SnapNest_Playlist.zip";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
+        
+        setTotalDownloads((prev) => (prev !== null ? prev + itemsToDownload.length : null));
+      } catch (error) {
+        console.error("Bulk Zip Failed:", error);
+        alert(t.downloadFailed);
+      }
+    } else {
+      // Standard Sequential Safe-Mode
+      for (const itemId of selectedPlaylistItems) {
+        const item = playlist.entries.find((e) => e.id === itemId);
+        if (item) {
+          const targetAudioFormat = playlistAudioFormats[item.id] || "mp3";
+          try {
+            await handleDownload(item.url, true, targetAudioFormat);
+          } catch (error) {
+            console.error(`Failed to download ${item.title}`, error);
+          }
         }
       }
     }
+    
     setIsDownloadingBulk(false);
   }
 
@@ -643,22 +689,39 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
                   {t.deselectAll}
                 </button>
                 {selectedPlaylistItems.size > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleBulkDownload}
-                    disabled={isDownloadingBulk}
-                    className="rounded-full bg-accent hover:bg-accent/90 px-3 py-1 text-xs font-medium text-white shadow-sm transition disabled:opacity-50 ml-auto flex items-center gap-2"
-                  >
-                    {isDownloadingBulk ? (
-                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    ) : null}
-                    {t.downloadSelected} ({selectedPlaylistItems.size})
-                  </button>
+                  <div className="ml-auto flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80 cursor-pointer bg-white border border-border px-3 py-1.5 rounded-full hover:bg-slate-50 transition" title={t.zipDownloadWarning}>
+                       <input 
+                          type="checkbox" 
+                          checked={downloadAsZip}
+                          onChange={(e) => setDownloadAsZip(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded text-accent cursor-pointer"
+                       />
+                       {t.downloadAsZip}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleBulkDownload}
+                      disabled={isDownloadingBulk}
+                      className="rounded-full bg-accent hover:bg-accent/90 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isDownloadingBulk ? (
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      ) : null}
+                      {t.downloadSelected} ({selectedPlaylistItems.size})
+                    </button>
+                  </div>
                 )}
               </div>
             )}
             
-            <div className="mt-4 max-h-[500px] overflow-y-auto space-y-2">
+            {downloadAsZip && selectedPlaylistItems.size > 0 && (
+               <div className="mt-2 text-[10px] sm:text-xs text-amber-600/90 font-medium px-2 pb-2">
+                 ⚠️ {t.zipDownloadWarning}
+               </div>
+            )}
+
+            <div className="mt-2 max-h-[500px] overflow-y-auto space-y-2">
               {playlist.entries.map((item) => {
                 const itemFmt = playlistAudioFormats[item.id] || "mp3";
                 
