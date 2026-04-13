@@ -7,8 +7,9 @@ const cairo = Cairo({
   subsets: ["latin", "arabic"],
 });
 
-export async function generateMetadata({ params }: { params: { locale: string } }): Promise<Metadata> {
-  const isEn = params.locale === "en";
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  const isEn = locale === "en";
 
   const title = isEn 
     ? "SnapNest - The Universal Video Downloader" 
@@ -58,7 +59,7 @@ export async function generateMetadata({ params }: { params: { locale: string } 
     openGraph: {
       title,
       description: desc,
-      url: `https://nouralddin.wtf/${params.locale}`,
+      url: `https://nouralddin.wtf/${locale}`,
       siteName: isEn ? "SnapNest Video Downloader" : "سناب نست لتحميل الفيديوهات",
       locale: isEn ? "en_US" : "ar_AR",
       type: "website",
@@ -82,14 +83,15 @@ export async function generateMetadata({ params }: { params: { locale: string } 
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
   params,
 }: {
   children: React.ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
-  const isEn = params.locale === "en";
+  const { locale } = await params;
+  const isEn = locale === "en";
   return (
     <html
       lang={isEn ? "en" : "ar"}

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, use } from "react";
 
 type Platform = {
   id: string;
@@ -162,8 +162,9 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
   throw new Error("Maximum retries exceeded");
 }
 
-export default function Home({ params }: { params: { locale: string } }) {
-  const lang = params.locale === "en" ? "en" : "ar";
+export default function Home({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = use(params);
+  const lang = locale === "en" ? "en" : "ar";
   const t = translations[lang];
 
   useEffect(() => {
