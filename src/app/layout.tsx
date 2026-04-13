@@ -1,51 +1,47 @@
 import type { Metadata } from "next";
-import { Fraunces, Space_Grotesk } from "next/font/google";
+import { Cairo } from "next/font/google";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
-});
-
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
+const cairo = Cairo({
+  variable: "--font-cairo",
+  subsets: ["latin", "arabic"],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "SnapNest - Multi Platform Video Downloader",
-    template: "%s | SnapNest",
+    default: "سناب نست - محمل الفيديوهات الشامل",
+    template: "%s | سناب نست",
   },
   description:
-    "SnapNest is a premium video downloader for YouTube, Facebook, TikTok, Instagram, and X/Twitter. Save videos in true HD/MP4 or convert seamlessly to MP3 audio effortlessly.",
+    "سناب نست هو أداة تحميل فيديوهات متقدمة تدعم يوتيوب، فيسبوك، تيك توك، انستغرام، وتويتر/إكس. قم بتنزيل الفيديوهات بجودة عالية HD/MP4 أو حولها إلى ملفات صوتية MP3 بكل سهولة.",
   keywords: [
-    "video downloader",
-    "youtube downloader",
-    "facebook video downloader",
-    "tiktok no watermark",
-    "instagram reels downloader",
-    "twitter video downloader",
-    "mp4 to mp3 downloader",
+    "تحميل فيديو",
+    "تنزيل يوتيوب",
+    "تنزيل من فيسبوك",
+    "تيك توك بدون علامة مائية",
+    "تحميل ريلز انستغرام",
+    "تحميل فيديوهات تويتر",
+    "محول يوتيوب الى mp3",
     "SnapNest",
+    "سناب نست",
   ],
-  authors: [{ name: "SnapNest" }],
+  authors: [{ name: "سناب نست" }],
   creator: "SnapNest",
   metadataBase: new URL("https://example.com"),
   openGraph: {
-    title: "SnapNest - The Original Multi Platform Downloader",
+    title: "سناب نست - الموقع الأصلي لتحميل الفيديوهات من جميع المنصات",
     description:
-      "Save your favorite videos safely! Support for YouTube, Facebook, TikTok, Instagram, and Twitter in up to HD or MP3 formats.",
+      "احفظ فيديوهاتك المفضلة بسرعة وأمان! دعم كامل ليوتيوب، فيسبوك، تيك توك، انستغرام وتويتر، مع خيارات التحميل بجودة HD أو MP3.",
     url: "https://example.com",
-    siteName: "SnapNest Downloader",
-    locale: "en_US",
+    siteName: "سناب نست لتحميل الفيديوهات",
+    locale: "ar_AR",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SnapNest - Fast, Secure Multi-Platform Video Downloader",
+    title: "سناب نست - تحميل سريع وآمن للفيديوهات عبر جميع المنصات",
     description:
-      "A fast, modern web app to download high-quality videos and audios from popular social platforms.",
+      "تطبيق ويب حديث وسريع لتحميل أروع الفيديوهات والملفات الصوتية بجودة ممتازة من مواقع التواصل الاجتماعي المفضلة لديك.",
   },
   robots: {
     index: true,
@@ -67,8 +63,9 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
-      className={`${spaceGrotesk.variable} ${fraunces.variable} h-full antialiased`}
+      lang="ar"
+      dir="rtl"
+      className={`${cairo.className} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

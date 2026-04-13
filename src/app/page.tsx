@@ -30,6 +30,68 @@ type InfoApiResponse = {
   media: MediaInfo;
 };
 
+const translations = {
+  en: {
+    title: "SnapNest Downloader",
+    heading: "Download social videos in the quality you want.",
+    subtitle: "Paste one public URL from supported platforms, choose video quality or switch to audio-only.",
+    downloadsSuffix: "downloads",
+    videoUrl: "Video URL",
+    audioOnly: "Audio only",
+    check: "Check",
+    checking: "Checking...",
+    selectedMedia: "Selected Media",
+    noMedia: "No media loaded yet. Analyze a URL to preview and download.",
+    audioOptions: "Audio quality options",
+    videoOptions: "Video quality options",
+    option: "option",
+    optionsTitleSuffix: "s",
+    noFormat: "No matching format was found for this mode. Try toggling audio-only.",
+    processing: "Processing on server...",
+    transferring: "Downloading...",
+    downloadAudio: "Download audio",
+    downloadVideo: "Download video",
+    disclaimer: "Download supports public media and content you are authorized to save.",
+    unknownDuration: "Unknown duration",
+    fetchError: "Could not fetch media information.",
+    mediaReady: "Media ready. Choose quality and download.",
+    analyzeError: "Unknown error while analyzing URL.",
+    downloadFailed: "Download failed.",
+    browserError: "ReadableStream not supported by browser.",
+    downloadComplete: "Download complete.",
+    downloadError: "Unknown error while downloading."
+  },
+  ar: {
+    title: "محمل سناب نست",
+    heading: "حمل فيديوهات التواصل الاجتماعي بالجودة التي تريدها.",
+    subtitle: "قم بلصق رابط عام من المنصات المدعومة، اختر جودة الفيديو أو قم بالتبديل إلى الصوت فقط.",
+    downloadsSuffix: "عملية تحميل",
+    videoUrl: "رابط الفيديو",
+    audioOnly: "صوت فقط",
+    check: "فحص",
+    checking: "جاري الفحص...",
+    selectedMedia: "التنسيق المختار",
+    noMedia: "لم يتم تحميل الوسائط بعد. قم بوضع الرابط في الأعلى لفحصه وعرض خيارات التحميل.",
+    audioOptions: "خيارات دقة الصوت",
+    videoOptions: "خيارات دقة الفيديو",
+    option: "خيار",
+    optionsTitleSuffix: "",
+    noFormat: "لا يوجد تنسيق مطابق. جرب التبديل بوضع الصوت فقط.",
+    processing: "جاري المعالجة...",
+    transferring: "جاري التحميل...",
+    downloadAudio: "تحميل الصوت",
+    downloadVideo: "تحميل الفيديو",
+    disclaimer: "التحميل يدعم الوسائط العامة والمحتوى الذي يُسمح لك بحفظه فقط.",
+    unknownDuration: "مدة غير معروفة",
+    fetchError: "تعذر جلب معلومات الوسائط.",
+    mediaReady: "الوسائط جاهزة. اختر الجودة ثم قم بالتحميل.",
+    analyzeError: "خطأ غير معروف أثناء فحص الرابط.",
+    downloadFailed: "فشل التحميل.",
+    browserError: "متصفحك لا يدعم التحميل المباشر.",
+    downloadComplete: "اكتمل التحميل.",
+    downloadError: "خطأ غير معروف أثناء التحميل."
+  }
+};
 
 const platformLabels = [
   "YouTube",
@@ -39,9 +101,9 @@ const platformLabels = [
   "Twitter / X",
 ];
 
-function formatDuration(seconds: number | null): string {
+function formatDuration(seconds: number | null, t: typeof translations["ar"]): string {
   if (!seconds || Number.isNaN(seconds)) {
-    return "Unknown duration";
+    return t.unknownDuration;
   }
 
   const hours = Math.floor(seconds / 3600);
@@ -56,6 +118,14 @@ function formatDuration(seconds: number | null): string {
 }
 
 export default function Home() {
+  const [lang, setLang] = useState<"ar" | "en">("ar");
+  const t = translations[lang];
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  }, [lang]);
+
   const [url, setUrl] = useState("");
   const [mp3Only, setMp3Only] = useState(false);
   const [loadingInfo, setLoadingInfo] = useState(false);
@@ -89,7 +159,6 @@ export default function Home() {
     return mp3Only ? media.audioFormats : media.videoFormats;
   }, [media, mp3Only]);
 
-  // isMuxed for the currently selected video format — needed by the download API
   const selectedFormat = useMemo(
     () => activeFormats.find((f) => f.formatId === selectedFormatId) ?? null,
     [activeFormats, selectedFormatId],
@@ -129,7 +198,7 @@ export default function Home() {
 
       if (!response.ok) {
         throw new Error(
-          payload.message || "Could not fetch media information.",
+          payload.message || t.fetchError,
         );
       }
 
@@ -141,7 +210,7 @@ export default function Home() {
         : payload.media.videoFormats[0]?.formatId;
 
       setSelectedFormatId(preferredFormat ?? "");
-      setSuccess("Media ready. Choose quality and download.");
+      setSuccess(t.mediaReady);
     } catch (requestError) {
       setPlatform(null);
       setMedia(null);
@@ -149,7 +218,7 @@ export default function Home() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Unknown error while analyzing URL.",
+          : t.analyzeError,
       );
     } finally {
       setLoadingInfo(false);
@@ -182,7 +251,7 @@ export default function Home() {
 
       if (!response.ok) {
         const payload = (await response.json()) as { message?: string };
-        throw new Error(payload.message || "Download failed.");
+        throw new Error(payload.message || t.downloadFailed);
       }
 
       setDownloadPhase("transferring");
@@ -191,7 +260,7 @@ export default function Home() {
       const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error("ReadableStream not supported by browser.");
+      if (!reader) throw new Error(t.browserError);
 
       let receivedBytes = 0;
       const chunks: BlobPart[] = [];
@@ -232,13 +301,13 @@ export default function Home() {
       anchor.remove();
       URL.revokeObjectURL(objectUrl);
 
-      setSuccess("Download complete.");
+      setSuccess(t.downloadComplete);
       setTotalDownloads((prev) => (prev !== null ? prev + 1 : null));
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Unknown error while downloading.",
+          : t.downloadError,
       );
     } finally {
       setDownloadPhase("idle");
@@ -255,16 +324,24 @@ export default function Home() {
       </div>
 
       <main className="w-full max-w-5xl rounded-3xl border border-border/90 bg-card/95 p-5 shadow-[0_24px_90px_rgba(55,31,10,0.16)] backdrop-blur-sm sm:p-8">
+        <div className="flex w-full items-center justify-end mb-4">
+          <button
+            onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+            className="flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-slate-50"
+          >
+            {lang === "ar" ? "🇺🇸 English" : "🇸🇦 العربية"}
+          </button>
+        </div>
+
         <section className="mb-7">
           <p className="mb-2 inline-flex rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-            SnapNest Downloader
+            {t.title}
           </p>
           <h1 className="text-3xl leading-tight text-foreground sm:text-5xl">
-            Download social videos in the quality you want.
+            {t.heading}
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-foreground/75 sm:text-base">
-            Paste one public URL from supported platforms, choose video quality
-            or switch to audio-only, then start downloading.
+            {t.subtitle}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {platformLabels.map((item) => (
@@ -289,7 +366,7 @@ export default function Home() {
                     clipRule="evenodd"
                   />
                 </svg>
-                {totalDownloads.toLocaleString()} downloads
+                {totalDownloads.toLocaleString()} {t.downloadsSuffix}
               </span>
             )}
           </div>
@@ -304,7 +381,7 @@ export default function Home() {
               htmlFor="video-url"
               className="mb-2 block text-sm font-semibold text-foreground"
             >
-              Video URL
+              {t.videoUrl}
             </label>
             <input
               id="video-url"
@@ -312,7 +389,8 @@ export default function Home() {
               value={url}
               onChange={(event) => setUrl(event.target.value)}
               placeholder="https://www.youtube.com/watch?v=..."
-              className="w-full rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none ring-accent/35 transition focus:ring"
+              className={`w-full rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none ring-accent/35 transition focus:ring ${lang === "ar" ? "text-left" : "text-left"}`}
+              dir="ltr"
               required
             />
 
@@ -331,7 +409,7 @@ export default function Home() {
                   }}
                   className="size-4"
                 />
-                Audio only
+                {t.audioOnly}
               </label>
             </div>
 
@@ -340,16 +418,16 @@ export default function Home() {
               disabled={loadingInfo}
               className="mt-5 inline-flex h-12 items-center justify-center rounded-xl bg-accent px-5 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loadingInfo ? "Checking..." : "Check"}
+              {loadingInfo ? t.checking : t.check}
             </button>
           </form>
 
           <div className="rounded-2xl border border-border bg-background/80 p-4 sm:p-5">
-            <h2 className="text-xl text-foreground">Selected Media</h2>
+            <h2 className="text-xl text-foreground">{t.selectedMedia}</h2>
 
             {!media && (
               <p className="mt-3 text-sm text-foreground/70">
-                No media loaded yet. Analyze a URL to preview and download.
+                {t.noMedia}
               </p>
             )}
 
@@ -377,7 +455,7 @@ export default function Home() {
                     </span>
                   )}
                   <span className="rounded-full border border-border bg-white px-2 py-1">
-                    {formatDuration(media.durationSeconds)}
+                    {formatDuration(media.durationSeconds, t)}
                   </span>
                 </div>
               </div>
@@ -389,18 +467,16 @@ export default function Home() {
           <section className="mt-5 rounded-2xl border border-border bg-background/80 p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="text-xl text-foreground">
-                {mp3Only ? "Audio quality options" : "Video quality options"}
+                {mp3Only ? t.audioOptions : t.videoOptions}
               </h2>
               <span className="text-xs font-medium text-foreground/70">
-                {activeFormats.length} option
-                {activeFormats.length === 1 ? "" : "s"}
+                {activeFormats.length} {t.option}{activeFormats.length === 1 ? "" : (lang === "en" ? t.optionsTitleSuffix : "")}
               </span>
             </div>
 
             {activeFormats.length === 0 && (
               <p className="text-sm text-foreground/70">
-                No matching format was found for this mode. Try toggling
-                audio-only.
+                {t.noFormat}
               </p>
             )}
 
@@ -419,6 +495,7 @@ export default function Home() {
                           ? "border-accent bg-accent/10"
                           : "border-border bg-white hover:border-accent/45"
                       }`}
+                      dir="ltr"
                     >
                       <p className="text-sm font-semibold text-foreground">
                         {format.qualityLabel}
@@ -438,19 +515,21 @@ export default function Home() {
                 type="button"
                 onClick={handleDownload}
                 disabled={!canDownload}
-                className="inline-flex h-12 min-w-[200px] items-center justify-center rounded-xl bg-accent-2 px-5 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className={`inline-flex h-12 min-w-[200px] items-center justify-center rounded-xl bg-accent-2 px-5 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${lang === "en" ? "" : "text-left"}`}
+                style={{ direction: "ltr" }}
               >
-                {downloadPhase === "processing"
-                  ? "Processing on server..."
-                  : downloadPhase === "transferring"
-                    ? `Downloading... ${downloadProgress}%`
-                    : mp3Only
-                      ? "Download audio"
-                      : "Download video"}
+                <div className="flex w-full items-center justify-center gap-1.5" dir={lang === "ar" ? "rtl" : "ltr"}>
+                  {downloadPhase === "processing"
+                    ? t.processing
+                    : downloadPhase === "transferring"
+                      ? `${t.transferring} %${downloadProgress}`
+                      : mp3Only
+                        ? t.downloadAudio
+                        : t.downloadVideo}
+                </div>
               </button>
               <p className="text-xs text-foreground/65">
-                Download supports public media and content you are authorized to
-                save.
+                {t.disclaimer}
               </p>
             </div>
           </section>
