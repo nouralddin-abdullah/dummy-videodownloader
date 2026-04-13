@@ -83,6 +83,10 @@ export async function fetchSpotifyMedia(url: string): Promise<FetchMediaResult> 
       entries: []
     };
 
+    if (!data.tracks || !data.tracks.items) {
+      throw new Error("Cannot extract items. This Spotify playlist is either empty or private.");
+    }
+
     const items = isAlbum ? data.tracks.items : data.tracks.items;
     
     for (let i = 0; i < items.length; i++) {

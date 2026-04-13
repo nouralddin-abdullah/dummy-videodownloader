@@ -272,6 +272,11 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
 
       setPlatform(payload.platform);
       
+      const isSpotify = payload.platform?.id === "spotify";
+      if (isSpotify) {
+        setMp3Only(true);
+      }
+      
       if (payload.type === "playlist" && payload.playlist) {
         setPlaylist(payload.playlist);
         setMedia(null);
@@ -280,7 +285,7 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
         setMedia(payload.media);
         setPlaylist(null);
         setSuccess(t.mediaReady);
-        const preferredFormat = mp3Only
+        const preferredFormat = (mp3Only || isSpotify)
           ? payload.media.audioFormats[0]?.formatId
           : payload.media.videoFormats[0]?.formatId;
         setSelectedFormatId(preferredFormat ?? "");

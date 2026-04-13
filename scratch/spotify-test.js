@@ -1,36 +1,25 @@
 async function test() {
-  try {
-    // Get guest token
-    const tokenRes = await fetch("https://open.spotify.com/get_access_token?reason=transport&productType=web_player", {
-        headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
-        }
-    });
-    const tokenData = await tokenRes.json();
-    console.log("Token:", tokenData.accessToken.substring(0, 20) + "...");
-
-    // Query track
-    const trackRes = await fetch("https://api.spotify.com/v1/tracks/1sPXYYedKz0fM5x8J8k82A", {
-        headers: {
-            "Authorization": "Bearer " + tokenData.accessToken
-        }
-    });
-    const trackData = await trackRes.json();
-    console.log("Track:", trackData.name, "-", trackData.artists[0].name);
-    console.log("Image:", trackData.album.images[0].url);
-
-    // Query playlist
-    const plRes = await fetch("https://api.spotify.com/v1/playlists/37i9dQZF1DXcBWIGoYBM5M?fields=name,images,tracks.items(track(name,artists,duration_ms,id))", {
-        headers: {
-            "Authorization": "Bearer " + tokenData.accessToken
-        }
-    });
-    const plData = await plRes.json();
-    console.log("Playlist:", plData.name);
-    console.log("Size:", plData.tracks.items.length);
-
-  } catch (e) {
-    console.error(e);
-  }
+  const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || '609abb4a69b7468486c6d009518b7779';
+  const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || 'a150e897d33d47058445325057266cca';
+  
+  const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: "Basic " + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64"),
+    },
+    body: "grant_type=client_credentials"
+  });
+  const tokenData = await tokenRes.json();
+  const token = tokenData.access_token;
+  
+  const res = await fetch(`https://api.spotify.com/v1/playlists/75S9M2Yq7G1qdC4uzveEDI?fields=name,images,tracks.items(track)`, {
+      headers: { Authorization: `Bearer ${token}` }
+  });
+  
+  const data = await res.json();
+  console.log("data keys:", Object.keys(data));
+  if (data.tracks) console.log("Items size:", data.tracks.items.length);
+  else console.log(data);
 }
 test();
