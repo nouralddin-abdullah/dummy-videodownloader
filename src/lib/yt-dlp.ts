@@ -308,19 +308,42 @@ function extractFormats(
 // Public API: fetch info
 // ---------------------------------------------------------------------------
 
+function getProxyUrl(): string | null {
+  if (process.env.PROXY_ENABLED !== "true") return null;
+
+  const host = process.env.PROXY_HOST;
+  const port = process.env.PROXY_PORT;
+  const user = process.env.PROXY_USER;
+  const pass = process.env.PROXY_PASS;
+
+  if (!host || !port) return null;
+
+  if (user && pass) {
+    return `http://${user}:${pass}@${host}:${port}`;
+  }
+  return `http://${host}:${port}`;
+}
+
 export async function fetchMediaInfo(url: string): Promise<MediaInfo> {
   const ytDlp = await getYtDlpInvocation();
 
+  const args = [
+    ...ytDlp.prefixArgs,
+    "--no-playlist",
+    "--dump-single-json",
+    "--no-warnings",
+  ];
+
+  const proxyUrl = getProxyUrl();
+  if (proxyUrl) {
+    args.push("--proxy", proxyUrl);
+  }
+
+  args.push("--", url);
+
   const { stdout } = await execFileAsync(
     ytDlp.command,
-    [
-      ...ytDlp.prefixArgs,
-      "--no-playlist",
-      "--dump-single-json",
-      "--no-warnings",
-      "--",
-      url,
-    ],
+    args,
     {
       maxBuffer: EXEC_BUFFER_SIZE,
       windowsHide: true,
@@ -393,6 +416,11 @@ async function runYtDlpDownload(
     "--restrict-filenames",
     "--no-warnings",
   ];
+
+  const proxyUrl = getProxyUrl();
+  if (proxyUrl) {
+    args.push("--proxy", proxyUrl);
+  }
 
   const ext = process.platform === "win32" ? ".exe" : "";
   const ffmpegPath = resolve(process.cwd(), "node_modules", "ffmpeg-static", `ffmpeg${ext}`);
