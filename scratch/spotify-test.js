@@ -1,25 +1,17 @@
 async function test() {
-  const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || '609abb4a69b7468486c6d009518b7779';
-  const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || 'a150e897d33d47058445325057266cca';
-  
-  const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
+  const url = "https://open.spotify.com/playlist/75S9M2Yq7G1qdC4uzveEDI?si=93c91f31564b4e27&pt=82cb1213a25908fce81918b5183d227f";
+  const res = await fetch(url, {
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: "Basic " + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64"),
-    },
-    body: "grant_type=client_credentials"
-  });
-  const tokenData = await tokenRes.json();
-  const token = tokenData.access_token;
-  
-  const res = await fetch(`https://api.spotify.com/v1/playlists/75S9M2Yq7G1qdC4uzveEDI?fields=name,images,tracks.items(track)`, {
-      headers: { Authorization: `Bearer ${token}` }
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    }
   });
   
-  const data = await res.json();
-  console.log("data keys:", Object.keys(data));
-  if (data.tracks) console.log("Items size:", data.tracks.items.length);
-  else console.log(data);
+  const text = await res.text();
+  console.log("HTML length:", text.length);
+  
+  // Find any track names
+  if (text.includes("Let Me Down Slowly")) {
+     console.log("Found playlist title!");
+  }
 }
 test();

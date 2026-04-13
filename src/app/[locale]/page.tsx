@@ -21,6 +21,7 @@ type MediaInfo = {
   title: string;
   thumbnail: string | null;
   durationSeconds: number | null;
+  webpageUrl: string;
   videoFormats: MediaFormat[];
   audioFormats: MediaFormat[];
 };
