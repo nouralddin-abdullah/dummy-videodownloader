@@ -468,6 +468,8 @@ async function runYtDlpDownload(
     ...ytDlp.prefixArgs,
     "--no-playlist",
     "--restrict-filenames",
+    "--embed-thumbnail",
+    "--embed-metadata",
     "--no-warnings",
   ];
 
