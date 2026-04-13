@@ -8,7 +8,15 @@ import { incrementDownloads } from "@/lib/stats";
 // This endpoint streams a cleanly padded .zip buffer automatically without consuming heavy RAM
 export async function POST(req: NextRequest) {
   try {
-    const { items } = await req.json();
+    let items;
+    const contentType = req.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+      items = body.items;
+    } else {
+      const formData = await req.formData();
+      items = JSON.parse(formData.get("payload") as string);
+    }
 
     if (!Array.isArray(items) || items.length === 0) {
       return new Response("Invalid request. Missing items.", { status: 400 });
@@ -20,9 +28,36 @@ export async function POST(req: NextRequest) {
 
     const stream = new ReadableStream({
       start(controller) {
-        archive.on("data", (chunk) => controller.enqueue(chunk));
-        archive.on("end", () => controller.close());
-        archive.on("error", (err) => controller.error(err));
+        let isClosed = false;
+
+        const safeClose = () => {
+          if (isClosed) return;
+          isClosed = true;
+          try { controller.close(); } catch {}
+        };
+
+        const safeError = (err: any) => {
+          if (isClosed) return;
+          isClosed = true;
+          try { controller.error(err); } catch {}
+        };
+
+        archive.on("data", (chunk) => {
+          if (isClosed) return;
+          try {
+            controller.enqueue(chunk);
+          } catch (e) {
+            isClosed = true;
+            archive.abort();
+          }
+        });
+        archive.on("end", safeClose);
+        archive.on("error", safeError);
+
+        req.signal.addEventListener("abort", () => {
+          isClosed = true;
+          archive.abort();
+        });
 
         // Wrap execution in an IIFE to not block the 'start' return
         (async () => {

@@ -472,25 +472,29 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
           };
         }).filter(Boolean);
 
-        const response = await fetchWithRetry("/api/media/bulk-zip", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: itemsToDownload })
-        });
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/api/media/bulk-zip";
+        form.style.display = "none";
 
-        if (!response.ok) throw new Error("ZIP creation failed on server.");
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "payload";
+        input.value = JSON.stringify(itemsToDownload);
 
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = objectUrl;
-        anchor.download = "SnapNest_Playlist.zip";
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(objectUrl);
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+        
+        // Wait briefly for native stream pipeline to bind visually, then release UI lock
+        setTimeout(() => {
+          document.body.removeChild(form);
+          setIsDownloadingBulk(false);
+          setTotalDownloads((prev) => (prev !== null ? prev + itemsToDownload.length : null));
+        }, 1500);
 
-        setTotalDownloads((prev) => (prev !== null ? prev + itemsToDownload.length : null));
+        return; // Exits to prevent immediate lock release
+
       } catch (error) {
         console.error("Bulk Zip Failed:", error);
         alert(t.downloadFailed);
