@@ -206,6 +206,7 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
   const [isDownloadingBulk, setIsDownloadingBulk] = useState(false);
   const [downloadAsZip, setDownloadAsZip] = useState(false);
   const [bulkZipProgress, setBulkZipProgress] = useState<{current: number, total: number} | null>(null);
+  const [downloadingItemId, setDownloadingItemId] = useState<{ id: string, type: 'audio' | 'video' } | null>(null);
 
   const toggleSelection = (id: string, action?: "all" | "none") => {
     setSelectedPlaylistItems((prev) => {
@@ -791,18 +792,38 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
                           <option value="wav">WAV</option>
                         </select>
                         <button
-                          onClick={() => handleDownload(item.url, true, itemFmt, item.title)}
-                          className="ml-2 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 flex-1"
+                          onClick={async () => {
+                             setDownloadingItemId({ id: item.id, type: 'audio' });
+                             await handleDownload(item.url, true, itemFmt, item.title);
+                             setDownloadingItemId(null);
+                          }}
+                          disabled={downloadPhase !== "idle" || downloadingItemId?.id === item.id}
+                          className="ml-2 flex items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 flex-1 disabled:opacity-50"
                         >
-                          {t.downloadAudio}
+                          {downloadingItemId?.id === item.id && downloadingItemId?.type === 'audio' ? (
+                             <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          ) : null}
+                          {downloadingItemId?.id === item.id && downloadingItemId?.type === 'audio' 
+                             ? (downloadProgress > 0 ? `${downloadProgress}%` : t.processing) 
+                             : t.downloadAudio}
                         </button>
                       </div>
 
                       <button
-                        onClick={() => handleDownload(item.url, false, undefined, item.title)}
-                        className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 flex-1 sm:flex-initial text-center"
+                        onClick={async () => {
+                           setDownloadingItemId({ id: item.id, type: 'video' });
+                           await handleDownload(item.url, false, undefined, item.title);
+                           setDownloadingItemId(null);
+                        }}
+                        disabled={downloadPhase !== "idle" || downloadingItemId?.id === item.id}
+                        className="rounded-lg flex items-center justify-center gap-1.5 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 flex-1 sm:flex-initial text-center disabled:opacity-50"
                       >
-                        {t.downloadVideo}
+                        {downloadingItemId?.id === item.id && downloadingItemId?.type === 'video' ? (
+                           <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        ) : null}
+                        {downloadingItemId?.id === item.id && downloadingItemId?.type === 'video' 
+                           ? (downloadProgress > 0 ? `${downloadProgress}%` : t.processing) 
+                           : t.downloadVideo}
                       </button>
                     </div>
                   </div>
