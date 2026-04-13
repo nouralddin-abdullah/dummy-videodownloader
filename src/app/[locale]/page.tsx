@@ -130,6 +130,7 @@ const platformLabels = [
   "TikTok",
   "Instagram",
   "Twitter / X",
+  "Spotify",
 ];
 
 function formatDuration(seconds: number | null, t: typeof translations["ar"]): string {

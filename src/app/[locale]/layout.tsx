@@ -16,8 +16,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     : "سناب نست - محمل الفيديوهات الشامل";
     
   const desc = isEn
-    ? "SnapNest is an advanced video downloader supporting YouTube, Facebook, TikTok, Instagram, and Twitter/X. Download high quality HD/MP4 videos or convert them to MP3 audio easily."
-    : "سناب نست هو أداة تحميل فيديوهات متقدمة تدعم يوتيوب، فيسبوك، تيك توك، انستغرام، وتويتر/إكس. قم بتنزيل الفيديوهات بجودة عالية HD/MP4 أو حولها إلى ملفات صوتية MP3 بكل سهولة.";
+    ? "SnapNest is an advanced downloader supporting YouTube, Facebook, TikTok, Instagram, Twitter/X, and Spotify. Download high quality HD/MP4 videos or convert playlists to MP3 audio easily."
+    : "سناب نست هو أداة تحميل متقدمة تدعم يوتيوب، سبوتيفاي، فيسبوك، تيك توك، انستغرام، وتويتر/إكس. قم بتنزيل الفيديوهات بجودة عالية HD أو حول وقوائم التشغيل إلى ملفات صوتية MP3 بكل سهولة.";
 
   const keywords = isEn ? [
     "SnapNest", "video downloader", "download video online", "free video downloader",
@@ -27,7 +27,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     "tiktok video downloader no watermark", "download tiktok video", "tiktok downloader without watermark",
     "twitter video downloader", "download video from x", "x video downloader",
     "youtube playlist downloader", "download whole youtube playlist", "download playlist to mp3",
-    "playlist to wav", "youtube to wav converter", "mp3 format downloader"
+    "playlist to wav", "youtube to wav converter", "mp3 format downloader",
+    "spotify track downloader", "spotify playlist downloader", "download spotify to mp3", 
+    "spotify to mp3", "download songs from spotify free", "free spotify downloader", "spotify to wav"
   ] : [
     "SnapNest", "سناب نست", "تحميل فيديو", "تنزيل فيديوهات", "تنزيل مقاطع", "محمل فيديوهات",
     "تنزيل يوتيوب", "تحميل من اليوتيوب", "يوتيوب mp4", "محول يوتيوب الى mp3", "تنزيل اغاني يوتيوب",
@@ -37,7 +39,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     "تحميل فيديوهات تويتر", "تنزيل فيديو من إكس", "حفظ فيديوهات تويتر",
     "تنزيل قائمة تشغيل يوتيوب", "تحميل بلي ليست", "تنزيل بلاي ليست يوتيوب",
     "تنزيل قائمة تشغيل", "تحميل جميع فيديوهات القناة", "محول اغاني جودة عالية wav",
-    "تنزيل mp3", "تنزيل wav", "تنزيل صوت عالي الدقة", "تحميل playlist", "تحميل فيديوهات دفعة واحدة"
+    "تنزيل mp3", "تنزيل wav", "تنزيل صوت عالي الدقة", "تحميل playlist", "تحميل فيديوهات دفعة واحدة",
+    "تحميل اغاني سبوتيفاي", "تنزيل من سبوتيفاي", "تنزيل قائمة تشغيل سبوتيفاي", "بلي ليست سبوتيفاي", "سبوتيفاي الى mp3"
   ];
 
   return {
