@@ -39,21 +39,50 @@ export async function fetchSpotifyMedia(url: string): Promise<FetchMediaResult> 
           entries: []
        };
 
-       for (const item of tracksData) {
-          if (!item) continue;
+       const playlistDefaultImage = data.coverArt?.sources?.[0]?.url || data.images?.[0]?.url || null;
+
+       const entriesPromises = tracksData.map(async (item: any) => {
+          if (!item) return null;
           
           const artist = item.artist || "Unknown Artist";
           const trackTitle = item.name || item.title;
           const searchString = `ytsearch1:${trackTitle} ${artist} audio`;
           
-          playlistInfo.entries.push({
+          let trackThumb = playlistDefaultImage;
+          try {
+             const controller = new AbortController();
+             const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout maximum to protect user UX
+             
+             const itunesQuery = encodeURIComponent(`${trackTitle} ${artist}`);
+             const res = await fetch(`https://itunes.apple.com/search?term=${itunesQuery}&entity=song&limit=1`, {
+                 signal: controller.signal,
+                 // Cache tightly to avoid hammering
+                 next: { revalidate: 3600 }
+             });
+             clearTimeout(timeoutId);
+             
+             if (res.ok) {
+                 const json = await res.json();
+                 if (json.results && json.results[0] && json.results[0].artworkUrl100) {
+                     trackThumb = json.results[0].artworkUrl100.replace('100x100bb', '600x600bb');
+                 }
+             }
+          } catch (e) {
+             // Fallback implicitly
+          }
+          
+          return {
              id: item.id || item.uri || searchString,
              title: `${artist} - ${trackTitle}`,
              durationSeconds: Math.floor((item.duration || 0) / 1000),
              url: searchString,
-             thumbnail: data.coverArt?.sources?.[0]?.url || data.images?.[0]?.url || null
-          });
-       }
+             thumbnail: trackThumb
+          };
+       });
+
+       const resolvedEntries = await Promise.all(entriesPromises);
+       playlistInfo.entries = resolvedEntries.filter((e): e is PlaylistItem => e !== null);
+
        return { type: "playlist", playlist: playlistInfo };
     }
 

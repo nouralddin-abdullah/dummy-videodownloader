@@ -1,15 +1,23 @@
-const spotifyUrlInfo = require('spotify-url-info')(fetch);
-
 async function test() {
-  try {
-     const url = "https://open.spotify.com/playlist/75S9M2Yq7G1qdC4uzveEDI?si=93c91f31564b4e27&pt=82cb1213a25908fce81918b5183d227f";
-     const data = await spotifyUrlInfo.getData(url);
-     console.log("Data keys:", Object.keys(data));
-     if (data.trackList) {
-         console.log("Data Tracklist:", data.trackList[0]);
+  console.time("itunes");
+  const urls = [
+    "Let me down slowly Alec Benjamin",
+    "Watermelon Sugar Harry Styles",
+    "Blinding Lights The Weeknd",
+    "Shape of You Ed Sheeran"
+  ];
+  
+  const results = await Promise.all(urls.map(async (query) => {
+     try {
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1`);
+        const json = await res.json();
+        return json.results[0]?.artworkUrl100?.replace('100x100bb', '600x600bb');
+     } catch (e) {
+        return null;
      }
-  } catch (e) {
-     console.error("Private failed:", e.message);
-  }
+  }));
+  
+  console.timeEnd("itunes");
+  console.log(results);
 }
 test();
