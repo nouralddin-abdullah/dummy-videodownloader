@@ -85,7 +85,8 @@ const translations = {
     deselectAll: "Deselect All",
     downloadSelected: "Download Selected",
     zipDownloadWarning: "Zipping songs might fail midway and lose progress. It's recommended to uncheck the zip if downloading too many songs.",
-    downloadAsZip: "Download as ZIP"
+    downloadAsZip: "Download as ZIP",
+    zippingProgress: "Zipping {current} / {total}"
   },
   ar: {
     title: "محمل سناب نست",
@@ -124,7 +125,8 @@ const translations = {
     deselectAll: "إلغاء التحديد",
     downloadSelected: "تحميل المحدد",
     zipDownloadWarning: "قد يفشل ضغط الأغاني في منتصف الطريق وتفقد تقدمك. يوصى بإلغاء تحديد خيار الضغط (ZIP) إذا كنت تقوم بتنزيل العديد من الأغاني.",
-    downloadAsZip: "ضغط كملف ZIP"
+    downloadAsZip: "ضغط كملف ZIP",
+    zippingProgress: "يتم ضغط {current} / {total}"
   }
 };
 
@@ -203,6 +205,7 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
   const [selectedPlaylistItems, setSelectedPlaylistItems] = useState<Set<string>>(new Set());
   const [isDownloadingBulk, setIsDownloadingBulk] = useState(false);
   const [downloadAsZip, setDownloadAsZip] = useState(false);
+  const [bulkZipProgress, setBulkZipProgress] = useState<{current: number, total: number} | null>(null);
 
   const toggleSelection = (id: string, action?: "all" | "none") => {
     setSelectedPlaylistItems((prev) => {
@@ -472,32 +475,51 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
           };
         }).filter(Boolean);
 
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = "/api/media/bulk-zip";
-        form.style.display = "none";
-
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = "payload";
-        input.value = JSON.stringify(itemsToDownload);
-
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
+        setBulkZipProgress({ current: 0, total: itemsToDownload.length });
         
-        // Wait briefly for native stream pipeline to bind visually, then release UI lock
-        setTimeout(() => {
-          document.body.removeChild(form);
-          setIsDownloadingBulk(false);
-          setTotalDownloads((prev) => (prev !== null ? prev + itemsToDownload.length : null));
-        }, 1500);
+        const response = await fetch("/api/media/bulk-zip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: itemsToDownload })
+        });
 
-        return; // Exits to prevent immediate lock release
+        if (!response.body) throw new Error("SSE Stream Failed");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const messages = buffer.split("\n\n");
+          buffer = messages.pop() || ""; // KEEP incomplete chunks
+
+          for (const msg of messages) {
+            if (msg.startsWith("data: ")) {
+              const data = JSON.parse(msg.slice(6));
+              
+              if (data.status === "processing") {
+                 setBulkZipProgress({ current: data.progress, total: data.total });
+              } else if (data.status === "completed") {
+                 // Trigger native browser download directly to the generated static ZIP file 
+                 window.location.href = `/api/media/bulk-zip/download?id=${data.fileId}`;
+                 setTotalDownloads((prev) => (prev !== null ? prev + itemsToDownload.length : null));
+              } else if (data.status === "error") {
+                 throw new Error(data.message);
+              }
+            }
+          }
+        }
+
 
       } catch (error) {
         console.error("Bulk Zip Failed:", error);
         alert(t.downloadFailed);
+      } finally {
+        setBulkZipProgress(null);
       }
     } else {
       // Standard Sequential Safe-Mode
@@ -713,7 +735,9 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
                       {isDownloadingBulk ? (
                         <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                       ) : null}
-                      {t.downloadSelected} ({selectedPlaylistItems.size})
+                      {bulkZipProgress 
+                        ? t.zippingProgress.replace("{current}", bulkZipProgress.current.toString()).replace("{total}", bulkZipProgress.total.toString())
+                        : `${t.downloadSelected} (${selectedPlaylistItems.size})`}
                     </button>
                   </div>
                 )}

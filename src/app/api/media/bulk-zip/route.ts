@@ -4,115 +4,120 @@ import { dlLimit } from "@/lib/queue";
 import { downloadMedia } from "@/lib/yt-dlp";
 import { Readable } from "stream";
 import { incrementDownloads } from "@/lib/stats";
+import { randomUUID } from "crypto";
+import { join } from "path";
+import { tmpdir } from "os";
+import { mkdir, rm } from "fs/promises";
+import * as fs from "fs";
 
-// This endpoint streams a cleanly padded .zip buffer automatically without consuming heavy RAM
 export async function POST(req: NextRequest) {
   try {
-    let items;
-    const contentType = req.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const body = await req.json();
-      items = body.items;
-    } else {
-      const formData = await req.formData();
-      items = JSON.parse(formData.get("payload") as string);
-    }
+    const { items } = await req.json();
 
     if (!Array.isArray(items) || items.length === 0) {
-      return new Response("Invalid request. Missing items.", { status: 400 });
+      return new Response(JSON.stringify({ error: "Invalid request. Missing items." }), { status: 400 });
     }
 
+    const sessionId = randomUUID();
+    const sessionDir = join(tmpdir(), `snapnest_zip_${sessionId}`);
+    await mkdir(sessionDir, { recursive: true });
+
+    const zipFilePath = join(sessionDir, `playlist.zip`);
+    const outputStream = fs.createWriteStream(zipFilePath);
+
     const archive = archiver("zip", {
-      zlib: { level: 5 }, // Good compression/speed balance
+      zlib: { level: 5 },
     });
 
-    const stream = new ReadableStream({
-      start(controller) {
-        let isClosed = false;
+    archive.pipe(outputStream);
 
-        const safeClose = () => {
-          if (isClosed) return;
-          isClosed = true;
-          try { controller.close(); } catch {}
-        };
+    // We use a TransformStream to construct standard Server-Sent Events (SSE)
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+    const encoder = new TextEncoder();
 
-        const safeError = (err: any) => {
-          if (isClosed) return;
-          isClosed = true;
-          try { controller.error(err); } catch {}
-        };
+    const ping = async (data: any) => {
+      try {
+        await writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      } catch (e) {
+         // Silently ignore write errors if client disconnected explicitly
+      }
+    };
 
-        archive.on("data", (chunk) => {
-          if (isClosed) return;
-          try {
-            controller.enqueue(chunk);
-          } catch (e) {
-            isClosed = true;
-            archive.abort();
-          }
-        });
-        archive.on("end", safeClose);
-        archive.on("error", safeError);
-
-        req.signal.addEventListener("abort", () => {
-          isClosed = true;
-          archive.abort();
-        });
-
-        // Wrap execution in an IIFE to not block the 'start' return
-        (async () => {
-          try {
-            // Because archiver.append() does not natively block the loop, if we launched 
-            // all of these sequentially it would cause yt-dlp to download all 50 tracks
-            // concurrently into /tmp/ and bloat the drive.
-            // Using a `for...of` loop with `dlLimit` ensures we only execute exactly 
-            // 3 intensive yt-dlp extractions globally at a time, ensuring absolute server stability.
-            const tasks = items.map((item, index) => dlLimit(async () => {
-               try {
-                   const reqObj = { ...item };
-                   const dl = await downloadMedia(reqObj);
-                   const nodeStream = Readable.fromWeb(dl.stream as any);
-
-                   // We must await the nodeStream to finish closing before releasing the dlLimit lock
-                   // so that yt-dlp has safely purged the internal /tmp/ file it used.
-                   // Notice we give each a safe name
-                   const cleanTitle = (item.title || "Unknown").replace(/[\\/:*?"<>|]/g, "_");
-                   // extract ext safely
-                   const ext = dl.fileName.split('.').pop() || "mp3";
-                   
-                   archive.append(nodeStream, { name: `${cleanTitle}-${index}.${ext}` });
-
-                   await new Promise<void>((resolve, reject) => {
-                       nodeStream.on("end", resolve);
-                       nodeStream.on("error", reject);
-                   });
-
-                   incrementDownloads();
-               } catch (e) {
-                   console.error(`Failed to pack item ${item.title}:`, e);
-                   // Create an ERROR.txt securely inside the zip for transparency instead of crashing the whole zip
-                   archive.append(`Failed to download ${item.title}: ${e instanceof Error ? e.message : e}`, { name: `ERROR-${index}.txt` });
-               }
-            }));
-
-            await Promise.allSettled(tasks);
-
-          } finally {
-            // Signal the archiver that no more files will be appended
-            archive.finalize();
-          }
-        })();
-      },
+    req.signal.addEventListener("abort", () => {
+      archive.abort();
+      rm(sessionDir, { recursive: true, force: true }).catch(() => {});
     });
 
-    return new Response(stream, {
+    // Background Async Runner
+    (async () => {
+      let completed = 0;
+      const total = items.length;
+
+      try {
+        await ping({ status: "processing", progress: 0, total });
+
+        const tasks = items.map((item: any, index: number) => dlLimit(async () => {
+           try {
+               const dl = await downloadMedia({ ...item });
+               const nodeStream = Readable.fromWeb(dl.stream as any);
+
+               const cleanTitle = (item.title || "Unknown").replace(/[\\/:*?"<>|]/g, "_");
+               const ext = dl.fileName.split('.').pop() || "mp3";
+               
+               archive.append(nodeStream, { name: `${cleanTitle}-${index}.${ext}` });
+
+               await new Promise<void>((resolve, reject) => {
+                   nodeStream.on("end", resolve);
+                   nodeStream.on("error", reject);
+               });
+
+               incrementDownloads();
+               completed++;
+               await ping({ status: "processing", progress: completed, total });
+           } catch (e) {
+               console.error(`Failed to pack item ${item.title}:`, e);
+               archive.append(`Failed to download ${item.title}: ${e instanceof Error ? e.message : e}`, { name: `ERROR-${index}.txt` });
+           }
+        }));
+
+        await Promise.allSettled(tasks);
+
+        await new Promise<void>((resolve, reject) => {
+           outputStream.on("close", resolve);
+           archive.on("error", reject);
+           archive.finalize();
+        });
+
+        // 100% written to disk securely
+        await ping({ status: "completed", fileId: sessionId });
+
+      } catch (error) {
+        console.error("Archive failure:", error);
+        await ping({ status: "error", message: "Failed to construct the ZIP archive permanently." });
+      } finally {
+        try {
+          await writer.close();
+        } catch(e) {}
+        
+        // Setup autonomous cleanup schedule for 15 minutes globally
+        setTimeout(() => {
+          rm(sessionDir, { recursive: true, force: true }).catch(() => {});
+        }, 15 * 60 * 1000);
+      }
+    })();
+
+    // HTTP 200 with standard SSE headers specifically designed to prevent caching
+    return new Response(stream.readable, {
       headers: {
-        "Content-Disposition": `attachment; filename="SnapNest_Playlist.zip"`,
-        "Content-Type": "application/zip",
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive"
       },
     });
+
   } catch (error) {
     console.error("Bulk Zip Initialization Error:", error);
-    return new Response("Internal Server Error", { status: 500 });
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), { status: 500 });
   }
 }
