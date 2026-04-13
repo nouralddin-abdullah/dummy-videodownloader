@@ -1,7 +1,8 @@
 import { FetchMediaResult, MediaInfo, PlaylistInfo, PlaylistItem } from "./yt-dlp";
-import spotifyUrlInfoPkg from "spotify-url-info";
 
 // We use the node-native fetch which Next.js polyfills perfectly.
+// Required via require() since the package is a pure CommonJS module exposing a function natively.
+const spotifyUrlInfoPkg = require("spotify-url-info");
 const spotifyUrlInfo = spotifyUrlInfoPkg(fetch);
 
 export async function fetchSpotifyMedia(url: string): Promise<FetchMediaResult> {
