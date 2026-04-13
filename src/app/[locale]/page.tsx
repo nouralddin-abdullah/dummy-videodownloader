@@ -278,12 +278,12 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
       }
 
       setPlatform(payload.platform);
-      
+
       const isSpotify = payload.platform?.id === "spotify";
       if (isSpotify) {
         setMp3Only(true);
       }
-      
+
       if (payload.type === "playlist" && payload.playlist) {
         setPlaylist(payload.playlist);
         setMedia(null);
@@ -356,7 +356,7 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
     }
   }
 
-  async function handleDownload(overrideUrl?: string, overrideAudioOnly?: boolean, overrideAudioFormat?: "mp3" | "wav") {
+  async function handleDownload(overrideUrl?: string, overrideAudioOnly?: boolean, overrideAudioFormat?: "mp3" | "wav", overrideTitle?: string) {
     if (!overrideUrl && !canDownload) {
       return;
     }
@@ -384,6 +384,7 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
           audioOnly: targetAudioOnly,
           audioFormat: targetAudioFormat,
           isMuxed: targetIsMuxed,
+          title: overrideTitle,
         }),
       });
 
@@ -472,9 +473,9 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
         }).filter(Boolean);
 
         const response = await fetchWithRetry("/api/media/bulk-zip", {
-           method: "POST",
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({ items: itemsToDownload })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: itemsToDownload })
         });
 
         if (!response.ok) throw new Error("ZIP creation failed on server.");
@@ -488,7 +489,7 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
         anchor.click();
         anchor.remove();
         URL.revokeObjectURL(objectUrl);
-        
+
         setTotalDownloads((prev) => (prev !== null ? prev + itemsToDownload.length : null));
       } catch (error) {
         console.error("Bulk Zip Failed:", error);
@@ -501,14 +502,14 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
         if (item) {
           const targetAudioFormat = playlistAudioFormats[item.id] || "mp3";
           try {
-            await handleDownload(item.url, true, targetAudioFormat);
+            await handleDownload(item.url, true, targetAudioFormat, item.title);
           } catch (error) {
             console.error(`Failed to download ${item.title}`, error);
           }
         }
       }
     }
-    
+
     setIsDownloadingBulk(false);
   }
 
@@ -691,13 +692,13 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
                 {selectedPlaylistItems.size > 0 && (
                   <div className="ml-auto flex items-center gap-3">
                     <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80 cursor-pointer bg-white border border-border px-3 py-1.5 rounded-full hover:bg-slate-50 transition" title={t.zipDownloadWarning}>
-                       <input 
-                          type="checkbox" 
-                          checked={downloadAsZip}
-                          onChange={(e) => setDownloadAsZip(e.target.checked)}
-                          className="w-3.5 h-3.5 rounded text-accent cursor-pointer"
-                       />
-                       {t.downloadAsZip}
+                      <input
+                        type="checkbox"
+                        checked={downloadAsZip}
+                        onChange={(e) => setDownloadAsZip(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded text-accent cursor-pointer"
+                      />
+                      {t.downloadAsZip}
                     </label>
                     <button
                       type="button"
@@ -714,22 +715,22 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
                 )}
               </div>
             )}
-            
+
             {downloadAsZip && selectedPlaylistItems.size > 0 && (
-               <div className="mt-2 text-[10px] sm:text-xs text-amber-600/90 font-medium px-2 pb-2">
-                 ⚠️ {t.zipDownloadWarning}
-               </div>
+              <div className="mt-2 text-[10px] sm:text-xs text-amber-600/90 font-medium px-2 pb-2">
+                😜 {t.zipDownloadWarning}
+              </div>
             )}
 
             <div className="mt-2 max-h-[500px] overflow-y-auto space-y-2">
               {playlist.entries.map((item) => {
                 const itemFmt = playlistAudioFormats[item.id] || "mp3";
-                
+
                 return (
                   <div key={item.id} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-xl border p-3 gap-3 transition-colors ${selectedPlaylistItems.has(item.id) ? 'border-accent/40 bg-accent/5' : 'border-border bg-white hover:border-accent/20'}`}>
                     <div className="flex items-center gap-3 flex-1 overflow-hidden w-full">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         checked={selectedPlaylistItems.has(item.id)}
                         onChange={() => toggleSelection(item.id)}
                         className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent/50 cursor-pointer"
@@ -746,34 +747,34 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
                       <div className="flex-1 overflow-hidden pr-2">
                         <p className="text-sm font-medium text-foreground line-clamp-2">{item.title}</p>
                         {item.durationSeconds && (
-                           <p className="mt-1 text-xs text-foreground/60" dir="ltr">{formatDuration(item.durationSeconds, t)}</p>
+                          <p className="mt-1 text-xs text-foreground/60" dir="ltr">{formatDuration(item.durationSeconds, t)}</p>
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                       <div className="flex bg-accent/5 rounded-lg border border-accent/20 p-1 flex-1 sm:flex-initial">
-                        <select 
-                           value={itemFmt}
-                           onChange={(e) => setPlaylistAudioFormats({...playlistAudioFormats, [item.id]: e.target.value as "mp3"|"wav"})}
-                           className="bg-transparent text-xs outline-none text-foreground/80 cursor-pointer pl-1 pr-0"
+                        <select
+                          value={itemFmt}
+                          onChange={(e) => setPlaylistAudioFormats({ ...playlistAudioFormats, [item.id]: e.target.value as "mp3" | "wav" })}
+                          className="bg-transparent text-xs outline-none text-foreground/80 cursor-pointer pl-1 pr-0"
                         >
                           <option value="mp3">MP3</option>
                           <option value="wav">WAV</option>
                         </select>
-                        <button 
-                           onClick={() => handleDownload(item.url, true, itemFmt)}
-                           className="ml-2 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 flex-1"
+                        <button
+                          onClick={() => handleDownload(item.url, true, itemFmt, item.title)}
+                          className="ml-2 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 flex-1"
                         >
                           {t.downloadAudio}
                         </button>
                       </div>
-  
-                      <button 
-                         onClick={() => handleDownload(item.url, false)}
-                         className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 flex-1 sm:flex-initial text-center"
+
+                      <button
+                        onClick={() => handleDownload(item.url, false, undefined, item.title)}
+                        className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 flex-1 sm:flex-initial text-center"
                       >
-                         {t.downloadVideo}
+                        {t.downloadVideo}
                       </button>
                     </div>
                   </div>
@@ -811,8 +812,8 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
                       type="button"
                       onClick={() => setSelectedFormatId(format.formatId)}
                       className={`rounded-xl border px-4 py-3 text-left transition ${isSelected
-                          ? "border-accent bg-accent/10"
-                          : "border-border bg-white hover:border-accent/45"
+                        ? "border-accent bg-accent/10"
+                        : "border-border bg-white hover:border-accent/45"
                         }`}
                       dir="ltr"
                     >
@@ -831,17 +832,17 @@ export default function Home({ params }: { params: Promise<{ locale: string }> }
 
             <div className="mt-4 flex flex-col sm:flex-row flex-wrap items-center gap-3">
               {mp3Only && (
-                 <div className="flex items-center gap-2 rounded-xl bg-white px-4 border border-border h-12 w-full sm:w-auto">
-                   <span className="text-sm text-foreground/70">{t.audioFormat}:</span>
-                   <select 
-                     value={audioFormat} 
-                     onChange={(e) => setAudioFormat(e.target.value as "mp3" | "wav")}
-                     className="text-sm font-semibold bg-transparent outline-none cursor-pointer flex-1"
-                   >
-                     <option value="mp3">MP3</option>
-                     <option value="wav">WAV</option>
-                   </select>
-                 </div>
+                <div className="flex items-center gap-2 rounded-xl bg-white px-4 border border-border h-12 w-full sm:w-auto">
+                  <span className="text-sm text-foreground/70">{t.audioFormat}:</span>
+                  <select
+                    value={audioFormat}
+                    onChange={(e) => setAudioFormat(e.target.value as "mp3" | "wav")}
+                    className="text-sm font-semibold bg-transparent outline-none cursor-pointer flex-1"
+                  >
+                    <option value="mp3">MP3</option>
+                    <option value="wav">WAV</option>
+                  </select>
+                </div>
               )}
               <button
                 type="button"

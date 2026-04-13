@@ -3,6 +3,7 @@ import archiver from "archiver";
 import { dlLimit } from "@/lib/queue";
 import { downloadMedia } from "@/lib/yt-dlp";
 import { Readable } from "stream";
+import { incrementDownloads } from "@/lib/stats";
 
 // This endpoint streams a cleanly padded .zip buffer automatically without consuming heavy RAM
 export async function POST(req: NextRequest) {
@@ -50,6 +51,8 @@ export async function POST(req: NextRequest) {
                        nodeStream.on("end", resolve);
                        nodeStream.on("error", reject);
                    });
+
+                   incrementDownloads();
                } catch (e) {
                    console.error(`Failed to pack item ${item.title}:`, e);
                    // Create an ERROR.txt securely inside the zip for transparency instead of crashing the whole zip

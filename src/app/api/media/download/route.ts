@@ -13,6 +13,7 @@ type DownloadRequestBody = {
   audioOnly?: unknown;
   audioFormat?: unknown;
   isMuxed?: unknown;
+  title?: unknown;
 };
 
 function getErrorMessage(error: unknown): string {
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
       : "mp3";
   const audioOnly = body.audioOnly === true;
   const isMuxed = body.isMuxed === true;
+  const customTitle = typeof body.title === "string" ? body.title.trim() : "";
 
   if (!url) {
     return NextResponse.json(
@@ -101,9 +103,13 @@ export async function POST(request: Request) {
     // Record the successful download locally, safely
     incrementDownloads();
 
+    const finalFileName = customTitle 
+       ? `${customTitle.replace(/[\\/:*?"<>|]/g, "_")}.${payload.fileName.split('.').pop()}` 
+       : payload.fileName;
+
     const headers: HeadersInit = {
       "Content-Type": payload.contentType,
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(payload.fileName)}`,
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`,
       "Cache-Control": "no-store",
     };
 
