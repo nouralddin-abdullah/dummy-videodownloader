@@ -117,6 +117,27 @@ function formatDuration(seconds: number | null, t: typeof translations["ar"]): s
   return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2): Promise<Response> {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) {
+        return response;
+      }
+      if (i === maxRetries) {
+        return response;
+      }
+    } catch (error) {
+      if (i === maxRetries) {
+        throw error;
+      }
+    }
+    // Exponential backoff or flat wait before retrying explicitly
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  throw new Error("Maximum retries exceeded");
+}
+
 export default function Home() {
   const [lang, setLang] = useState<"ar" | "en">("ar");
   const t = translations[lang];
@@ -182,7 +203,7 @@ export default function Home() {
     setSuccess(null);
 
     try {
-      const response = await fetch("/api/media/info", {
+      const response = await fetchWithRetry("/api/media/info", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -236,7 +257,7 @@ export default function Home() {
     setSuccess(null);
 
     try {
-      const response = await fetch("/api/media/download", {
+      const response = await fetchWithRetry("/api/media/download", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
